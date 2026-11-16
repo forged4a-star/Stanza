@@ -15,6 +15,8 @@ on:
       - 'desktop/**'
       - '.github/workflows/android-apk.yml'
       - '.github/workflows/desktop.yml'
+      # editing this file alone does not republish the site; run it by hand when wanted
+      - '.github/workflows/web.yml'
   workflow_dispatch:
 
 concurrency:

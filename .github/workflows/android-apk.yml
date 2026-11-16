@@ -17,6 +17,8 @@ on:
       - 'scripts/finish-web.mjs'
       - '.github/workflows/web.yml'
       - '.github/workflows/desktop.yml'
+      # editing this file does not need a new build either; run it by hand when wanted
+      - '.github/workflows/android-apk.yml'
   workflow_dispatch:
     inputs:
       all_architectures:
