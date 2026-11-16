@@ -46,3 +46,4 @@ scripts/raw/cmudict.dict
 # e2e build output and local server data
 dist-e2e/
 stanza-server.db*
+stanza-source.zip
