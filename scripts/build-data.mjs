@@ -86,13 +86,36 @@ function rhymeKey(enc) {
   return enc.slice(start).replace(/[012]/g, '');
 }
 
+// Words WordNet only knows capitalised (surnames, places): flagged so rhyme
+// lists can leave them out.
+const properOnly = new Set();
+{
+  const wnDir0 = path.join(path.dirname(require.resolve('wordnet-db/package.json')), 'dict');
+  const lower = new Set();
+  const upper = new Set();
+  for (const file of ['noun', 'verb', 'adj', 'adv']) {
+    const text = fs.readFileSync(path.join(wnDir0, `data.${file}`), 'latin1');
+    for (const line of text.split('\n')) {
+      if (!line || line.startsWith('  ')) continue;
+      const head = line.slice(0, line.indexOf('|')).trim().split(' ');
+      const n = parseInt(head[3], 16);
+      for (let k = 0, i = 4; k < n; k++, i += 2) {
+        const w = head[i].replace(/\((a|p|ip)\)$/, '');
+        if (/^[A-Z]/.test(w)) upper.add(w.toLowerCase());
+        else lower.add(w);
+      }
+    }
+  }
+  for (const w of upper) if (!lower.has(w)) properOnly.add(w);
+}
+
 const words = [...prons.keys()].sort(cmp);
 const dictLines = [];
 const rhymeMap = new Map();
 for (const w of words) {
   const list = prons.get(w);
   const f = freqDigit(w);
-  dictLines.push(`${w}\t${list.join('/')}\t${f}`);
+  dictLines.push(`${w}\t${list.join('/')}\t${f}${properOnly.has(w) ? 'P' : ''}`);
   const seen = new Set();
   for (const enc of list) {
     const key = rhymeKey(enc);
@@ -192,7 +215,14 @@ for (const [pos, file] of Object.entries(POS_FILES)) {
     const ptrCount = parseInt(p[3], 10);
     const tagged = parseInt(p[5 + ptrCount], 10);
     const offsets = p.slice(6 + ptrCount, 6 + ptrCount + synCount);
-    const idxs = offsets.map((o) => indexOf.get(pos + o)).filter((x) => x !== undefined);
+    // skip senses where the word only appears capitalised (proper nouns: "Holmes", "Logan")
+    const idxs = offsets
+      .filter((o) => {
+        const syn = synsets.get(pos + o);
+        return syn && syn.lemmas.some((l) => l === lemma);
+      })
+      .map((o) => indexOf.get(pos + o))
+      .filter((x) => x !== undefined);
     if (!idxs.length) continue;
     if (!wordSenses.has(lemma)) wordSenses.set(lemma, []);
     wordSenses.get(lemma).push({ tagged, idxs });

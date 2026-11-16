@@ -28,7 +28,7 @@ const normStress = (s: string) => s.replace(/2/g, '1');
 
 function makeHit(word: string, score: number): WordHit | null {
   const p = dictLookup(word);
-  if (!p) return null;
+  if (!p || p.proper) return null;
   const enc = p.prons[0];
   return { word, syllables: countSyllables(enc), stress: stressPattern(enc), freq: p.freq, score };
 }
@@ -40,7 +40,21 @@ function applyFilter(hits: WordHit[], f: WordFilter): WordHit[] {
   return out.slice(0, f.limit ?? 200);
 }
 
-const isPlain = (w: string) => /^[a-z][a-z']*$/.test(w) && !w.endsWith("'s");
+/** plain words only: no contractions, possessives or abbreviations */
+const isPlain = (w: string) => /^[a-z]+(-[a-z]+)?$/.test(w) && w.length > 1;
+
+/**
+ * Filter out names and rare oddities (the CMU dictionary is full of surnames):
+ * keep words WordNet knows, inflections of words it knows, and common words.
+ */
+function isUsefulWord(w: string, freq: number): boolean {
+  if (wnHas(w)) return true;
+  if (freq >= 7) return true;
+  for (const base of [w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/ed$/, ''), w.replace(/ed$/, 'e'), w.replace(/ing$/, ''), w.replace(/ing$/, 'e'), w.replace(/ies$/, 'y')]) {
+    if (base !== w && base.length > 2 && wnHas(base)) return true;
+  }
+  return false;
+}
 
 /** Perfect rhymes: identical sound from the last stressed vowel on. */
 export function perfectRhymes(rawWord: string, filter: WordFilter = {}): WordHit[] {
@@ -59,7 +73,7 @@ export function perfectRhymes(rawWord: string, filter: WordFilter = {}): WordHit
       if (w.endsWith(word) && w.length > word.length) continue;
       seen.add(w);
       const h = makeHit(w, 1);
-      if (h) hits.push(h);
+      if (h && isUsefulWord(w, h.freq)) hits.push(h);
     }
   }
   hits.sort((a, b) => b.freq - a.freq || a.syllables - b.syllables);
@@ -92,7 +106,9 @@ export function nearRhymes(rawWord: string, filter: WordFilter = {}): WordHit[] 
       if (taken >= 12) break;
       if (seen.has(w) || !isPlain(w)) continue;
       const h = makeHit(w, score);
-      if (!h || h.freq < 2) continue;
+      if (!h || !isUsefulWord(w, h.freq)) continue;
+      // "homes" adds nothing next to "home"
+      if (w.endsWith('s') && seen.has(w.slice(0, -1))) continue;
       seen.add(w);
       hits.push(h);
       taken++;
@@ -137,7 +153,7 @@ export function multiRhymes(rawWord: string, filter: WordFilter = {}): WordHit[]
     for (const w of list.split(' ')) {
       if (seen.has(w) || !isPlain(w)) continue;
       const h = makeHit(w, s);
-      if (!h || h.freq < 1) continue;
+      if (!h || !isUsefulWord(w, h.freq)) continue;
       seen.add(w);
       hits.push(h);
     }
@@ -149,6 +165,7 @@ export function multiRhymes(rawWord: string, filter: WordFilter = {}): WordHit[]
 // ------------------------------------------------------------------ WordNet
 
 const wnWords = new SortedLines((wnData as { words: string }).words);
+const wnHas = (w: string) => wnWords.has(w);
 const wnSynsets = new SortedLines((wnData as { synsets: string }).synsets);
 
 export type PartOfSpeech = 'noun' | 'verb' | 'adjective' | 'adverb';

@@ -41,7 +41,8 @@ async function main() {
     await page.mouse.up();
   };
   const closeSheet = async () => {
-    await page.getByRole('button', { name: 'Close sheet' }).click();
+    // the newest sheet is on top
+    await page.getByRole('button', { name: 'Close sheet' }).last().click();
     await page.waitForTimeout(400);
   };
   const settle = async () => {
@@ -183,6 +184,7 @@ async function main() {
   });
 
   await check('compare two sections side by side', async () => {
+    await id('open-song-sheet').click();
     await id('open-compare').click();
     await id('compare-sheet').waitFor();
     await id('compare-row-0').waitFor();

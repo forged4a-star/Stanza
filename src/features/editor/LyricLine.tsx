@@ -14,6 +14,9 @@ import { Icon } from '../../ui/kit';
 import { font, space, useTheme, type Theme } from '../../ui/theme';
 import type { LineMeta } from './useSongAnalysis';
 
+/** Where the caret is, for tools that act on "the word I'm on". */
+export const caret = { lineId: null as string | null, pos: 0 };
+
 export interface LineDisplay {
   showSyllables: boolean;
   showStress: boolean;
@@ -137,7 +140,11 @@ function LyricLineImpl({ line, meta, display, placeholder, testID }: Props) {
         ref={inputRef}
         value={line.text}
         onChangeText={(v) => setLineText(line.id, v)}
-        onSelectionChange={(e) => (selection.current = e.nativeEvent.selection)}
+        onSelectionChange={(e) => {
+          selection.current = e.nativeEvent.selection;
+          caret.lineId = line.id;
+          caret.pos = e.nativeEvent.selection.start;
+        }}
         onKeyPress={onKeyPress}
         autoFocus
         onFocus={() => {

@@ -17,13 +17,16 @@ export interface Pronunciation {
   freq: number;
   /** where it came from */
   source: 'dict' | 'derived' | 'guess';
+  /** only known as a name (surname, place) */
+  proper?: boolean;
 }
 
 export function dictLookup(word: string): Pronunciation | null {
   const v = dict.get(word);
   if (v === null) return null;
   const tab = v.indexOf('\t');
-  return { prons: v.slice(0, tab).split('/'), freq: Number(v.slice(tab + 1)) || 0, source: 'dict' };
+  const meta = v.slice(tab + 1);
+  return { prons: v.slice(0, tab).split('/'), freq: parseInt(meta, 10) || 0, source: 'dict', proper: meta.endsWith('P') };
 }
 
 export const inDictionary = (word: string): boolean => dict.has(word);
@@ -32,7 +35,7 @@ export const inDictionary = (word: string): boolean => dict.has(word);
 export function scanDictionary(fn: (word: string, prons: string[], freq: number) => boolean | void): void {
   dict.scanAll((k, v) => {
     const tab = v.indexOf('\t');
-    return fn(k, v.slice(0, tab).split('/'), Number(v.slice(tab + 1)) || 0);
+    return fn(k, v.slice(0, tab).split('/'), parseInt(v.slice(tab + 1), 10) || 0);
   });
 }
 

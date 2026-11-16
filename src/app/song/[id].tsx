@@ -12,7 +12,10 @@ import { startCapture, useCapturePhase } from '../../features/capture/capture';
 import { SectionBlock } from '../../features/editor/SectionBlock';
 import { ArrangeSheet, CompareSheet, LineSheet, sectionMenu } from '../../features/editor/sheets';
 import { useSongAnalysis } from '../../features/editor/useSongAnalysis';
-import type { LineDisplay } from '../../features/editor/LyricLine';
+import { caret, type LineDisplay } from '../../features/editor/LyricLine';
+import { SoundSheet } from '../../features/sound/SoundSheet';
+import { WordSheet, type WordTarget } from '../../features/words/WordSheet';
+import { analyzeLine, wordAtOffset } from '../../core/phonetics/line';
 import { InboxSheet } from '../../features/inbox/InboxSheet';
 import { SongSheet, type SongSheetAction } from '../../features/song/SongSheet';
 import { TakesSheet } from '../../features/takes/TakesSheet';
@@ -38,6 +41,7 @@ export default function SongPage() {
   const [lineMenu, setLineMenu] = useState<string | null>(null);
   const [compare, setCompare] = useState<[number, number] | null>(null);
   const [inboxCount, setInboxCount] = useState(0);
+  const [wordTarget, setWordTarget] = useState<WordTarget | null>(null);
 
   // (re)open on focus: this page may be revealed again by going back to it
   useFocusEffect(
@@ -66,6 +70,7 @@ export default function SongPage() {
       showScheme: settings.showScheme,
       showChords: false,
       onMenu: (lineId) => setLineMenu(lineId),
+      onWord: (word, lineId) => word && setWordTarget({ word, lineId }),
     }),
     [settings.showSyllables, settings.showStress, settings.showScheme]
   );
@@ -98,7 +103,36 @@ export default function SongPage() {
     if (k) useSong.getState().addSection(k as SectionKind);
   };
 
-  const openFromSongSheet = (a: SongSheetAction) => setSheet(a);
+  const openFromSongSheet = (a: SongSheetAction) => {
+    if (a === 'compare') {
+      setSheet(null);
+      openCompare();
+    } else setSheet(a);
+  };
+
+  /** Look up the word under the caret (or the last word of the active line). */
+  const openWords = () => {
+    const st = useSong.getState();
+    const d = st.doc!;
+    const lineId = caret.lineId ?? st.activeLineId;
+    const at = lineId ? findLine(d, lineId) : null;
+    let word = '';
+    if (at) {
+      const info = analyzeLine(at.line.text);
+      const w = caret.lineId === at.line.id ? wordAtOffset(info, caret.pos) : info.words[info.words.length - 1];
+      word = w?.norm.replace(/^'+|'+$/g, '') ?? '';
+    }
+    setWordTarget({ word, lineId: at?.line.id ?? null });
+  };
+
+  const openCompare = () => {
+    const d = useSong.getState().doc!;
+    if (d.sections.length < 2) return toast('Add another section to compare');
+    const st = useSong.getState();
+    const at = st.activeLineId ? findLine(d, st.activeLineId) : null;
+    const b = at ? at.s : 1;
+    setCompare([b === 0 ? 1 : 0, b]);
+  };
 
   if (!doc || doc.song.id !== id) {
     return <View style={{ flex: 1, backgroundColor: t.bg }} />;
@@ -152,19 +186,8 @@ export default function SongPage() {
             <IconButton icon="albums-outline" label={`Takes (${recordingsCount})`} onPress={() => setSheet('takes')} testID="open-takes" />
             <IconButton icon="file-tray-outline" label={`Inbox (${inboxCount})`} onPress={() => setSheet('inbox')} testID="open-inbox" />
             <IconButton icon="reorder-three" label="Arrange sections" onPress={() => setSheet('arrange')} testID="open-arrange" />
-            <IconButton
-              icon="git-compare-outline"
-              label="Compare sections"
-              onPress={() => {
-                const d = useSong.getState().doc!;
-                if (d.sections.length < 2) return toast('Add another section to compare');
-                const st = useSong.getState();
-                const at = st.activeLineId ? findLine(d, st.activeLineId) : null;
-                const b = at ? at.s : 1;
-                setCompare([b === 0 ? 1 : 0, b]);
-              }}
-              testID="open-compare"
-            />
+            <IconButton icon="book-outline" label="Words: rhymes, thesaurus, dictionary" onPress={openWords} testID="open-words" />
+            <IconButton icon="color-palette-outline" label="Sound: highlighting and counts" active={settings.highlight} onPress={() => setSheet('sound')} testID="open-sound" />
           </View>
           <Pressable
             onPress={recordHere}
@@ -185,8 +208,10 @@ export default function SongPage() {
       <VersionsSheet visible={sheet === 'versions'} onClose={() => setSheet(null)} />
       <ArrangeSheet visible={sheet === 'arrange'} onClose={() => setSheet(null)} />
       <InboxSheet visible={sheet === 'inbox'} onClose={() => setSheet(null)} />
-      <LineSheet lineId={lineMenu} onClose={() => setLineMenu(null)} />
+      <LineSheet lineId={lineMenu} onClose={() => setLineMenu(null)} onLookup={(w) => setWordTarget({ word: w, lineId: lineMenu })} />
       <CompareSheet pair={compare} onClose={() => setCompare(null)} />
+      <SoundSheet visible={sheet === 'sound'} onClose={() => setSheet(null)} analysis={analysis} />
+      <WordSheet target={wordTarget} onClose={() => setWordTarget(null)} />
     </View>
   );
 }

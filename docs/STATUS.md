@@ -1,5 +1,8 @@
 # Stanza — build status
 
+Target platforms for now: **Android and web**. iOS code that already exists
+(the WidgetKit extension in `targets/record-widget`) is kept but not pursued.
+
 How this was verified: unit tests run with `npm test` (Vitest, Node). The app is
 exercised end to end in Chromium against the web build (`e2e/*.e2e.cjs`,
 Playwright). iOS and Android native projects are generated with
@@ -81,4 +84,40 @@ that only exists natively is marked *not run on a device*.
   profiles); tested on synthetic audio, not yet on real voice memos.
 
 ### Unable to build here
-- Native iOS/Android binaries (no Xcode; Android SDK download blocked).
+- Native Android binary (the Android SDK download host is blocked in this
+  environment), so nothing has run on an Android device yet.
+
+## Phase 2 — sound analysis and reference tools
+
+### Works (tested)
+- **Pronunciation**: CMU Pronouncing Dictionary bundled (126k words), plus a
+  rule-based phonemiser for unknown words (slang, coinages): derives
+  inflections/compounds from known words first ("runnin'", "heartbreakingly",
+  "unfriended"), then letter-to-sound rules. On the 23k most common words the
+  rule-based fallback alone gets the syllable count exactly right 92.5% of the
+  time and within one 99.8%.
+- **Highlight modes**, each toggleable and per syllable (not per word): perfect
+  rhyme, slant rhyme (feature-based vowel and consonant similarity), multi-
+  syllabic rhyme, assonance, consonance, alliteration. Rhymes share a colour
+  per family across the song.
+- **Settings**: sensitivity slider (strict ↔ loose), line endings only vs
+  internal rhymes, three palettes including a colour-blind-safe set
+  (Okabe–Ito).
+- **Rhyme scheme letters** (ABAB…) in the margin, restarting per section.
+- **Counts panel**: rhyme families with member counts, count of every phoneme
+  (whole song or one section), vowel-sound heatmap (sections × vowels),
+  most-repeated words.
+- **Word tools** (long-press any word, the Words button for the word at the
+  cursor, or "Look up a word" in the line menu): perfect / near / multi-
+  syllabic rhymes, similar words (WordNet thesaurus), definitions with
+  opposites, related words (broader/narrower/see-also); filter by syllable
+  count and stress pattern; pronunciation shown in IPA. Choosing a word offers
+  to swap it into the line it came from, look it up, or save it to the Inbox.
+  Names and contractions are filtered out of rhyme lists.
+- Lookups take ~2–90 ms on a laptop; analysis of a 120-line song with every
+  mode on takes ~50 ms (runs deferred so typing never waits).
+
+### Stubbed / limitations
+- Stress for one-syllable words is guessed from word class (function words
+  weak, content words strong); the dictionary has no sentence stress.
+- Slant/near rhyme quality is heuristic; tuned on test cases, not on a corpus.
