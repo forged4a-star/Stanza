@@ -47,6 +47,7 @@ export default function SettingsScreen() {
         <ToggleRow label="Rhyme scheme letters" value={s.showScheme} onChange={(v) => s.set({ showScheme: v })} />
         <ToggleRow label="Sound highlighting" value={s.highlight} onChange={(v) => s.set({ highlight: v })} />
         <ToggleRow label="Cliché and repetition flags" hint="Off by default" value={s.clicheFlags} onChange={(v) => s.set({ clicheFlags: v })} />
+        <ToggleRow label="Idea of the day" hint="A writing prompt on the song list. Prompts only; never lyrics." value={s.dailyIdea} onChange={(v) => s.set({ dailyIdea: v, ideaHiddenDay: null })} testID="toggle-daily-idea" />
         <View style={{ paddingHorizontal: space.lg }}>
           <SectionTitle>Chord player</SectionTitle>
           <VolumeSlider />

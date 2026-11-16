@@ -135,7 +135,12 @@ const shots = process.argv[2] || null;
       await id('word-input').press('Enter');
       await id('rhyme-perfect').click();
       await id('word-results').getByRole('button', { name: /^delight,/ }).click();
-      await id('dialog').getByRole('button', { name: /Use instead/ }).click();
+      // the swap is previewed first: the new line, its syllable count and its rhymes
+      await id('swap-preview').waitFor();
+      assert.match(await id('swap-line').innerText(), /delight/);
+      assert.match(await id('swap-scan').innerText(), /syllable/);
+      assert.match(await id('swap-rhyme').innerText(), /Rhyme:/);
+      await id('swap-use').click();
       await page.waitForTimeout(500);
       assert.equal(await id('line-0-0-text').innerText(), 'the night is bright and I feel delight');
     });

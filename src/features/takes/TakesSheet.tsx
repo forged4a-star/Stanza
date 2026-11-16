@@ -5,7 +5,10 @@ import { sectionDisplayNames, type Recording } from '../../core/model';
 import { deleteAudio, playableUri } from '../../audio/storage';
 import { getDb } from '../../db/client';
 import * as repo from '../../db/repo';
-import { useSong } from '../../store/song';
+import { decodeStored } from '../../audio/decode';
+import { contourOf, wordMoves, type Contour } from '../../core/dsp/contour';
+import { findLine, useSong } from '../../store/song';
+import { ContourView } from './ContourView';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { askText, choose, confirm, toast } from '../../ui/Dialogs';
 import { Empty, Icon, IconButton, Segmented } from '../../ui/kit';
@@ -47,6 +50,23 @@ export function useTakePlayer() {
 export function TakeRow({ rec, player, onChanged, context }: { rec: Recording; player: ReturnType<typeof useTakePlayer>; onChanged: () => void; context?: string }) {
   const t = useTheme();
   const isCur = player.current === rec.id;
+  const doc = useSong((st) => st.doc);
+  const lineText = rec.lineId && doc ? findLine(doc, rec.lineId)?.line.text ?? '' : '';
+  const [ghost, setGhost] = useState<{ state: 'loading' | 'none' | 'error' | 'ready'; contour?: Contour }>({ state: 'none' });
+  const [showGhost, setShowGhost] = useState(false);
+  const toggleGhost = async () => {
+    if (showGhost) return setShowGhost(false);
+    setShowGhost(true);
+    if (ghost.state === 'ready') return;
+    setGhost({ state: 'loading' });
+    try {
+      const pcm = await decodeStored(rec.file);
+      const c = contourOf(pcm.samples, pcm.sampleRate);
+      setGhost(c ? { state: 'ready', contour: c } : { state: 'none' });
+    } catch {
+      setGhost({ state: 'error' });
+    }
+  };
   const playing = isCur && player.playing;
   const progress = isCur && player.duration ? player.position / player.duration : 0;
   const menu = async () => {
@@ -81,7 +101,8 @@ export function TakeRow({ rec, player, onChanged, context }: { rec: Recording; p
     onChanged();
   };
   return (
-    <View style={[styles.take, { borderBottomColor: t.border }]} testID={`take-${rec.id}`}>
+    <View style={{ borderBottomColor: t.border, borderBottomWidth: StyleSheet.hairlineWidth }}>
+    <View style={[styles.take, { borderBottomWidth: 0 }]} testID={`take-${rec.id}`}>
       <Pressable onPress={() => void player.toggle(rec).catch(() => toast('Could not play this take'))} style={[styles.play, { backgroundColor: t.surface2 }]} accessibilityRole="button" accessibilityLabel={playing ? `Pause ${rec.title}` : `Play ${rec.title}`}>
         <Icon name={playing ? 'pause' : 'play'} size={20} color={t.accent} />
       </Pressable>
@@ -104,7 +125,22 @@ export function TakeRow({ rec, player, onChanged, context }: { rec: Recording; p
           </View>
         )}
       </View>
+      <IconButton icon="pulse-outline" label={showGhost ? 'Hide the melody' : 'Show the melody'} color={showGhost ? t.accent : t.textDim} onPress={() => void toggleGhost()} testID={`ghost-${rec.id}`} />
       <IconButton icon="ellipsis-horizontal" label={`Options for ${rec.title}`} color={t.textDim} onPress={menu} />
+    </View>
+    {showGhost && (
+      <View style={{ paddingHorizontal: space.lg, paddingBottom: space.md }} testID={`ghost-view-${rec.id}`}>
+        {ghost.state === 'loading' ? (
+          <Text style={{ color: t.textDim }}>Reading the melody…</Text>
+        ) : ghost.state === 'error' ? (
+          <Text style={{ color: t.textDim }}>Could not read this take.</Text>
+        ) : ghost.state === 'none' ? (
+          <Text style={{ color: t.textDim }}>No clear singing or humming found. Spoken words do not show a melody.</Text>
+        ) : (
+          <ContourView contour={ghost.contour!} words={lineText ? wordMoves(ghost.contour!, lineText) : []} />
+        )}
+      </View>
+    )}
     </View>
   );
 }

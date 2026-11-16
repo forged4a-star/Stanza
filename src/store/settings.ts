@@ -47,6 +47,12 @@ export interface Settings {
   metronome: boolean;
   /** show the song as a chord sheet (chords over words) instead of the editor */
   chordSheet: boolean;
+  /** show an idea of the day on the library screen */
+  dailyIdea: boolean;
+  /** the day (YYYY-MM-DD) the idea was put away for */
+  ideaHiddenDay: string | null;
+  /** the writing-rule card in play: which card, and 'song' or a section id */
+  constraint: { id: string; scope: string } | null;
   /** guitar shapes: skip barre chords (beginner mode) */
   avoidBarres: boolean;
   /** lyric size in the chord sheet */
@@ -81,6 +87,9 @@ export const DEFAULT_SETTINGS: Settings = {
   customStrums: [],
   metronome: false,
   chordSheet: false,
+  dailyIdea: true,
+  ideaHiddenDay: null,
+  constraint: null,
   avoidBarres: false,
   sheetSize: 20,
   suggestBorrowed: false,

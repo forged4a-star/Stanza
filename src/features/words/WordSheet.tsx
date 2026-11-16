@@ -8,11 +8,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { toIpa } from '../../core/phonetics/arpabet';
 import { multiRhymes, nearRhymes, perfectRhymes, relatedWords, senses, synonyms, type WordHit } from '../../core/phonetics/lookup';
+import { previewSwap, swapBadge, swapWord } from '../../core/lyrics/swap';
 import { countSyllables, pronounce, stressPattern } from '../../core/phonetics/pronounce';
 import { useSong, findLine } from '../../store/song';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { choose, toast } from '../../ui/Dialogs';
-import { Chip, Empty, Icon, Row, SectionTitle, Segmented } from '../../ui/kit';
+import { Button, Chip, Empty, Icon, Row, SectionTitle, Segmented } from '../../ui/kit';
 import { font, radius, space, TAP, useTheme } from '../../ui/theme';
 
 type Tab = 'rhymes' | 'synonyms' | 'meaning' | 'related';
@@ -38,8 +39,17 @@ export function WordSheet({ target, onClose }: { target: WordTarget | null; onCl
   const [kind, setKind] = useState<RhymeKind>('perfect');
   const [syl, setSyl] = useState<number | null>(null);
   const [stress, setStress] = useState<string | null>(null);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const doc = useSong((st) => st.doc);
+  // the line this word came from, when it can be swapped there
+  const ctx = useMemo(() => {
+    const at = target?.lineId && doc ? findLine(doc, target.lineId) : null;
+    if (!at || at.line.locked || !swapWord(at.line.text, target!.word, 'x')) return null;
+    return { lineId: at.line.id, text: at.line.text, index: at.l, lines: doc!.sections[at.s].lines.map((l) => l.text) };
+  }, [target, doc]);
 
   useEffect(() => {
+    setChosen(null);
     if (target) {
       setWord(target.word);
       setQuery(target.word);
@@ -69,10 +79,30 @@ export function WordSheet({ target, onClose }: { target: WordTarget | null; onCl
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([p]) => p);
   }, [results, syl]);
   const shown = results.filter((r) => (!syl || r.syllables === syl) && (!stress || r.stress.replace(/2/g, '1') === stress));
+  const badges = useMemo(() => {
+    const m = new Map<string, { delta: number; fits: boolean }>();
+    if (ctx) for (const r of shown.slice(0, 240)) m.set(r.word, swapBadge(ctx.text, target!.word, r.word) ?? { delta: 0, fits: false });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx, shown, target]);
+  const preview = useMemo(() => (ctx && chosen ? previewSwap(ctx.lines, ctx.index, target!.word, chosen) : null), [ctx, chosen, target]);
   const meaning = useMemo(() => (word && tab === 'meaning' ? senses(word) : null), [word, tab]);
   const pron = word ? pronounce(word) : null;
 
+  const useChosen = () => {
+    if (!ctx || !chosen) return;
+    const next = swapWord(ctx.text, target!.word, chosen);
+    if (next === null) return;
+    useSong.getState().setLineText(ctx.lineId, next);
+    toast('Swapped in');
+    onClose();
+  };
+
   const pick = async (w: string) => {
+    if (ctx) {
+      setChosen(w);
+      return;
+    }
     const lineId = target?.lineId;
     const st = useSong.getState();
     const at = lineId && st.doc ? findLine(st.doc, lineId) : null;
@@ -155,6 +185,39 @@ export function WordSheet({ target, onClose }: { target: WordTarget | null; onCl
         )}
       </View>
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl }} keyboardShouldPersistTaps="handled">
+        {preview && chosen && (
+          <View style={{ padding: space.md, borderRadius: radius.md, backgroundColor: t.surface2, marginBottom: space.md, gap: 4 }} testID="swap-preview">
+            <Text style={{ color: t.textDim, fontSize: font.small }}>Your line</Text>
+            <Text style={{ color: t.textDim, fontSize: font.body }}>{ctx!.text}</Text>
+            <Text style={{ color: t.textDim, fontSize: font.small, marginTop: 4 }}>With “{chosen}”</Text>
+            <Text style={{ color: t.text, fontSize: font.body + 1, fontWeight: '600' }} testID="swap-line">{preview.text}</Text>
+            <Text style={{ color: preview.fits ? t.text : t.textDim, fontSize: font.small + 1, marginTop: 4 }} testID="swap-scan">
+              {preview.before === preview.after ? `${preview.after} syllables, same count` : `${preview.before} → ${preview.after} syllables (${preview.delta > 0 ? '+' : ''}${preview.delta})`}
+              {' · '}
+              {preview.stressBefore === preview.stressAfter ? 'stress unchanged' : `stress ${stressLabel(preview.stressBefore)} → ${stressLabel(preview.stressAfter)}`}
+            </Text>
+            <Text style={{ color: t.textDim, fontSize: font.small + 1 }} testID="swap-rhyme">
+              {preview.rhymesBefore.length === 0 && preview.rhymesAfter.length === 0
+                ? 'Rhyme: no rhyme either way'
+                : preview.rhymesBefore.join() === preview.rhymesAfter.join()
+                  ? `Rhyme: still rhymes with line ${preview.rhymesAfter.join(', ')}`
+                  : `Rhyme: ${preview.rhymesBefore.length ? `was with line ${preview.rhymesBefore.join(', ')}` : 'none before'}, ${preview.rhymesAfter.length ? `now with line ${preview.rhymesAfter.join(', ')}` : 'now none'}`}
+            </Text>
+            <Row style={{ marginTop: space.sm, flexWrap: 'wrap' }}>
+              <Button compact kind="primary" title="Use in my line" onPress={useChosen} testID="swap-use" />
+              <Button
+                compact
+                title={`Look up “${chosen}”`}
+                onPress={() => {
+                  setWord(chosen);
+                  setQuery(chosen);
+                  setChosen(null);
+                }}
+              />
+              <Button compact title="Close" onPress={() => setChosen(null)} testID="swap-close" />
+            </Row>
+          </View>
+        )}
         {tab === 'meaning' ? (
           meaning ? (
             meaning.senses.map((s, i) => (
@@ -183,7 +246,13 @@ export function WordSheet({ target, onClose }: { target: WordTarget | null; onCl
                   accessibilityLabel={`${r.word}, ${r.syllables} syllables`}
                 >
                   <Text style={{ color: t.text, fontSize: font.body, fontWeight: r.freq >= 6 ? '600' : '400' }}>{r.word}</Text>
-                  <Text style={{ color: t.textFaint, fontSize: 10 }}>{stressLabel(r.stress)}</Text>
+                  {badges.has(r.word) ? (
+                    <Text style={{ color: badges.get(r.word)!.fits ? t.accent : t.textFaint, fontSize: 10, fontWeight: badges.get(r.word)!.fits ? '700' : '400' }}>
+                      {badges.get(r.word)!.fits ? 'fits' : badges.get(r.word)!.delta === 0 ? 'stress differs' : `${badges.get(r.word)!.delta > 0 ? '+' : ''}${badges.get(r.word)!.delta} syl`}
+                    </Text>
+                  ) : (
+                    <Text style={{ color: t.textFaint, fontSize: 10 }}>{stressLabel(r.stress)}</Text>
+                  )}
                 </Pressable>
               ))}
             </View>

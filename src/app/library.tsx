@@ -7,6 +7,7 @@ import { SONG_STATUSES, type Folder, type SongStatus } from '../core/model';
 import { getDb } from '../db/client';
 import * as repo from '../db/repo';
 import { importProject } from '../features/export/exportActions';
+import { IdeaCard } from '../features/ideas/IdeaCard';
 import { ImportSheet } from '../features/import/ImportSheet';
 import { deleteAudio } from '../audio/storage';
 import { askText, choose, confirm, toast } from '../ui/Dialogs';
@@ -161,10 +162,13 @@ export default function Library() {
         contentContainerStyle={{ padding: space.lg, paddingBottom: 140 + insets.bottom, gap: space.sm }}
         ListHeaderComponent={
           !trash && !query ? (
-            <Row style={{ marginBottom: space.sm }}>
-              <Shortcut icon="file-tray-outline" label="Inbox" count={counts.inbox} onPress={() => router.push('/inbox')} testID="open-inbox-screen" />
-              <Shortcut icon="trash-bin-outline" label="Scrapyard" count={counts.scraps} onPress={() => router.push('/scrapyard')} testID="open-scrapyard" />
-            </Row>
+            <View>
+              <IdeaCard onStart={() => void newSong()} />
+              <Row style={{ marginBottom: space.sm }}>
+                <Shortcut icon="file-tray-outline" label="Inbox" count={counts.inbox} onPress={() => router.push('/inbox')} testID="open-inbox-screen" />
+                <Shortcut icon="trash-bin-outline" label="Scrapyard" count={counts.scraps} onPress={() => router.push('/scrapyard')} testID="open-scrapyard" />
+              </Row>
+            </View>
           ) : undefined
         }
         ListEmptyComponent={<Empty icon={query ? 'search' : 'musical-notes-outline'} title={query ? 'Nothing matches' : trash ? 'Trash is empty' : 'No songs here yet'} />}

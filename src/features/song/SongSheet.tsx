@@ -7,6 +7,7 @@ import { parseKey } from '../../core/music/theory';
 import { getDb } from '../../db/client';
 import * as repo from '../../db/repo';
 import { flushSaves, useSong } from '../../store/song';
+import { useCardBreaks } from '../cards/CardSheet';
 import { useSettings } from '../../store/settings';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { askText, choose, confirm, toast } from '../../ui/Dialogs';
@@ -16,13 +17,14 @@ import { exportSong, type ExportKind } from '../export/exportActions';
 import { Share, Platform } from 'react-native';
 import { roomFor, shareSong, stopSharing, useCollab } from '../../collab/collab';
 
-export type SongSheetAction = 'versions' | 'takes' | 'arrange' | 'sound' | 'compare' | 'shape' | 'web' | 'import';
+export type SongSheetAction = 'versions' | 'takes' | 'arrange' | 'sound' | 'compare' | 'shape' | 'web' | 'cards' | 'import';
 
 export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onClose: () => void; onOpen: (a: SongSheetAction) => void }) {
   const t = useTheme();
   const doc = useSong((s) => s.doc);
   const st = useSong.getState();
   const settings = useSettings();
+  const card = useCardBreaks();
   const [folders, setFolders] = useState<Folder[]>([]);
   const [tab, setTab] = useState<'song' | 'view' | 'export'>('song');
   const [bpmText, setBpmText] = useState('');
@@ -154,6 +156,7 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
               testID="edit-tags"
             />
             <ShareItem />
+            <ListItem icon="albums-outline" title="Constraint cards" subtitle={card ? `${card.title}: ${card.breaks === 0 ? 'all lines follow it' : card.breaks + ' lines break it'}` : 'Write inside a rule, like only one-syllable words'} onPress={() => onOpen('cards')} testID="open-cards" />
             <ListItem icon="git-network-outline" title="Rhyme web" subtitle="Families of rhymes, and line endings that rhyme with nothing" onPress={() => onOpen('web')} testID="open-web" />
             <ListItem icon="pulse-outline" title="Song shape" subtitle="Feeling map, verse/chorus contrast, questions" onPress={() => onOpen('shape')} testID="open-shape" />
             <ListItem icon="time-outline" title="Versions" subtitle="Snapshots, compare, restore" onPress={() => onOpen('versions')} testID="open-versions" />

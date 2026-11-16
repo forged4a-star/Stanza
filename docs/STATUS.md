@@ -408,3 +408,30 @@ Found by reading the native engine's source, not just testing in a browser:
 - Fixed along the way: the tap pad listens for the touch *starting* (a tap's time
   is when the finger lands), not the release.
 - Checks: 151 unit tests and all 11 browser suites pass. Lint cannot run here.
+
+## 1.1 batch 2: constraint cards, word swap preview, ghost of the take, idea of the day
+
+- **Constraint cards** (song menu → Constraint cards). Nine rules to write inside:
+  small words only, tight lines (8 syllables), land hard (strong ending), no end
+  rhymes, everything rhymes, nothing twice, only questions, no articles, start
+  alike. Pick or draw a card, choose whole song or one section, and it lists the
+  lines that break it and why. It only checks; it never suggests words. The song
+  menu shows the card in play and how many lines break it.
+- **Word swap preview** (Words sheet, opened from a line). Each candidate word is
+  tagged "fits" (same syllables and stress), "+1 syl", or "stress differs". Tap
+  one to see your line with it swapped in: syllables before and after, stress,
+  and which lines it rhymes with before and after. "Use in my line" applies it.
+  This replaces the old "Use instead of…" menu (phase 2 test updated).
+- **Ghost of the take** (Takes sheet → pulse icon on a take). Decodes the take,
+  tracks its pitch, trims to the sung part, and draws the curve. For a take
+  attached to a line, the line's words are laid along it by syllable, each marked
+  rises / falls / holds and high / mid / low. Words are spread evenly, so it is a
+  guide, not exact timing. Spoken takes show "no clear singing". Tested on
+  synthetic tones and the browser's fake microphone, **not on real singing**.
+- **Idea of the day** (song list, off in Settings). 48 prompts (questions and
+  situations, never lyrics), the same one all day, every one used before any
+  repeats; some come with a constraint card. Start a song (puts the card in play),
+  Save to Inbox, or Not today.
+- **Not built: a daily notification.** It needs a native notifications library and
+  a new APK, and it cannot be tested here, so the idea only appears in the app.
+- Checks: 178 unit tests and all 12 browser suites pass. Lint cannot run here.
