@@ -10,10 +10,11 @@ import { compareSections, defaultContrastPair, questionsFor } from '../../core/l
 import { sectionDisplayNames } from '../../core/model';
 import { useSong } from '../../store/song';
 import { BottomSheet } from '../../ui/BottomSheet';
+import { EnergyMap } from './EnergyMap';
 import { Chip, Row, SectionTitle, Segmented, Slider } from '../../ui/kit';
 import { font, radius, space, useTheme } from '../../ui/theme';
 
-type Tab = 'feeling' | 'contrast' | 'questions';
+type Tab = 'feeling' | 'energy' | 'contrast' | 'questions';
 
 export function ShapeSheet({ visible, onClose, initialTab = 'feeling' }: { visible: boolean; onClose: () => void; initialTab?: Tab }) {
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -24,7 +25,8 @@ export function ShapeSheet({ visible, onClose, initialTab = 'feeling' }: { visib
           value={tab}
           onChange={setTab}
           options={[
-            { value: 'feeling', label: 'Feeling map' },
+            { value: 'feeling', label: 'Feeling' },
+            { value: 'energy', label: 'Energy' },
             { value: 'contrast', label: 'Contrast' },
             { value: 'questions', label: 'Questions' },
           ]}
@@ -32,6 +34,7 @@ export function ShapeSheet({ visible, onClose, initialTab = 'feeling' }: { visib
       </View>
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.xxl }} keyboardShouldPersistTaps="handled">
         {tab === 'feeling' && <FeelingMap />}
+        {tab === 'energy' && <EnergyMap />}
         {tab === 'contrast' && <ContrastMeter />}
         {tab === 'questions' && <Questions />}
       </ScrollView>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SectionWithLines } from '../model';
-import { compareSections, defaultContrastPair, findFlags, questionsFor, sectionStats } from './shape';
+import { compareSections, defaultContrastPair, energyMap, findFlags, questionsFor, sectionStats } from './shape';
 
 let n = 0;
 const sec = (kind: SectionWithLines['kind'], lines: string[], extra: Partial<SectionWithLines> = {}): SectionWithLines => {
@@ -55,5 +55,30 @@ describe('questions, never lyrics', () => {
     expect(q.join(' ')).toMatch(/regret/);
     for (const x of q) expect(x.trim().endsWith('?')).toBe(true);
     expect(questionsFor(sec('bridge', ['']), { name: 'Bridge' })[0]).toMatch(/know now/);
+  });
+});
+
+describe('energy map', () => {
+  const bars = (chords: number) => Array.from({ length: 4 }, () => ({ chords: Array.from({ length: chords }, () => 'C') }));
+  const quiet = sec('verse', ['a long slow winding line of words here'], { intensity: 0.2, bars: bars(1), melody: notes([60, 62], 8) });
+  const loud = sec('chorus', ['hey go now'], { intensity: 0.9, bars: bars(2), melody: notes([72, 74, 76, 79, 72, 74], 2) });
+  it('scores a bigger chorus higher and agrees with an arc that rises', () => {
+    const [a, b] = energyMap([quiet, loud], [4, 4]);
+    expect(b.measured!).toBeGreaterThan(a.measured!);
+    expect(a.advice).toBeNull();
+    expect(b.advice).toBeNull();
+  });
+  it('flags a section meant to be big that plays small, with a lever', () => {
+    const [a, b] = energyMap([{ ...quiet, intensity: 0.95 }, { ...loud, intensity: 0.1 }], [4, 4]);
+    expect(a.gap!).toBeGreaterThan(0.3);
+    expect(a.advice).toMatch(/bigger than it plays/);
+    expect(b.advice).toMatch(/Plays bigger than you meant/);
+  });
+  it('says nothing without enough information', () => {
+    const only = energyMap([quiet], [4, 4]);
+    expect(only[0].intended).toBeNull();
+    expect(only[0].advice).toBeNull();
+    const none = energyMap([{ ...quiet, intensity: null }, { ...loud, intensity: null }], [4, 4]);
+    expect(none.every((p) => p.intended === null && p.advice === null)).toBe(true);
   });
 });

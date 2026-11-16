@@ -77,6 +77,27 @@ const shots = process.argv[2] || null;
       if (shots) await page.screenshot({ path: `${shots}/p5-feeling.png` });
     });
 
+    await check('energy map: drag the arc, see when the song plays against it', async () => {
+      await tab('Energy');
+      const box = await id('energy-chart').boundingBox();
+      const at = (fx, fy) => [box.x + box.width * fx, box.y + box.height * fy];
+      // quiet verse, big chorus: the chorus has the shorter line, so the song agrees
+      let [x, y] = at(0.06, 0.8);
+      await page.mouse.click(x, y);
+      [x, y] = at(0.94, 0.15);
+      await page.mouse.click(x, y);
+      await id('energy-ok').waitFor();
+      // now ask for a big verse and a small chorus: it disagrees and names a lever
+      [x, y] = at(0.06, 0.1);
+      await page.mouse.click(x, y);
+      [x, y] = at(0.94, 0.85);
+      await page.mouse.click(x, y);
+      await id('energy-advice').waitFor();
+      const adv = await id('energy-advice').innerText();
+      assert.match(adv, /bigger|Plays bigger/);
+      assert.match(adv, /Verse|Chorus/);
+    });
+
     await check('contrast meter compares verse and chorus', async () => {
       await tab('Contrast');
       assert.match(await id('contrast-verdict').innerText(), /contrast|alike/i);

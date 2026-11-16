@@ -227,3 +227,89 @@ export function questionsFor(section: SectionWithLines, opts: { name: string; so
   if (opts.songTitle && !text.toLowerCase().includes(opts.songTitle.toLowerCase()) && section.kind === 'chorus') qs.push(`The title is “${opts.songTitle}”. Does the chorus earn it, or point somewhere else?`);
   return qs.slice(0, 5);
 }
+
+// ------------------------------------------------------------------ energy map
+
+export type EnergyLever = 'register' | 'range' | 'density' | 'chordRate' | 'lineLength';
+
+export interface EnergyPoint {
+  index: number;
+  /** what the writer wants, 0..1 relative to the other sections (null if no intensity was set on enough sections) */
+  intended: number | null;
+  /** what the section's melody, chords and lines actually do, 0..1 relative to the others (null without data) */
+  measured: number | null;
+  /** intended minus measured; positive = the section should be bigger than it is */
+  gap: number | null;
+  /** plain-language suggestion about what to change; never lyrics */
+  advice: string | null;
+}
+
+const LEVER_UP: Record<EnergyLever, string> = {
+  register: 'sing it higher',
+  range: 'widen the melody',
+  density: 'make the rhythm busier',
+  chordRate: 'change chords more often',
+  lineLength: 'use shorter, punchier lines',
+};
+const LEVER_DOWN: Record<EnergyLever, string> = {
+  register: 'sit lower',
+  range: 'narrow the melody',
+  density: 'leave more space in the rhythm',
+  chordRate: 'let chords last longer',
+  lineLength: 'use longer, calmer lines',
+};
+
+const spread = (vals: (number | null)[]): (number | null)[] => {
+  const real = vals.filter((v): v is number => v !== null);
+  if (real.length < 2) return vals.map((v) => (v === null ? null : 0.5));
+  const lo = Math.min(...real);
+  const hi = Math.max(...real);
+  if (hi - lo < 1e-9) return vals.map((v) => (v === null ? null : 0.5));
+  return vals.map((v) => (v === null ? null : (v - lo) / (hi - lo)));
+};
+
+/**
+ * Compare the arc the writer drew (section intensity) with what each section
+ * does. Both are scaled 0..1 across the song, so this reads as "the shape of
+ * the energy", not an absolute loudness. Needs at least two sections.
+ */
+export function energyMap(sections: SectionWithLines[], timeSig: [number, number], threshold = 0.3): EnergyPoint[] {
+  const stats = sections.map((s) => sectionStats(s, timeSig));
+  const levers: Record<EnergyLever, (number | null)[]> = {
+    register: spread(stats.map((s) => s.register)),
+    range: spread(stats.map((s) => s.range)),
+    density: spread(stats.map((s) => s.density)),
+    chordRate: spread(stats.map((s) => s.chordRate)),
+    // shorter lines read as more energetic, so flip it
+    lineLength: spread(stats.map((s) => (s.lineLength ? s.lineLength : null))).map((v) => (v === null ? null : 1 - v)),
+  };
+  const weight: Record<EnergyLever, number> = { register: 1, range: 0.7, density: 1, chordRate: 0.8, lineLength: 0.5 };
+  const intendedRaw = sections.map((s) => s.intensity);
+  const intended = intendedRaw.filter((v) => v !== null).length >= 2 ? spread(intendedRaw) : intendedRaw.map(() => null);
+  return sections.map((_, i) => {
+    let sum = 0;
+    let w = 0;
+    const present: { lever: EnergyLever; v: number }[] = [];
+    for (const k of Object.keys(levers) as EnergyLever[]) {
+      const v = levers[k][i];
+      if (v === null) continue;
+      sum += v * weight[k];
+      w += weight[k];
+      present.push({ lever: k, v });
+    }
+    const measured = w ? sum / w : null;
+    const want = intended[i];
+    const gap = want !== null && measured !== null ? want - measured : null;
+    let advice: string | null = null;
+    if (gap !== null && Math.abs(gap) >= threshold && present.length) {
+      if (gap > 0) {
+        const low = present.reduce((a, b) => (b.v < a.v ? b : a));
+        advice = `Meant to be bigger than it plays: ${LEVER_UP[low.lever]}.`;
+      } else {
+        const high = present.reduce((a, b) => (b.v > a.v ? b : a));
+        advice = `Plays bigger than you meant: ${LEVER_DOWN[high.lever]}.`;
+      }
+    }
+    return { index: i, intended: want, measured, gap, advice };
+  });
+}
