@@ -154,6 +154,12 @@ const shots = process.argv[2] || null;
       await page.waitForTimeout(200);
       assert.equal(await id('player-bpm').inputValue(), '120');
       await id('tap-tempo').click();
+      // volume slider: tap near the right end, it follows and is remembered
+      const vb = await id('volume').boundingBox();
+      await page.mouse.click(vb.x + vb.width * 0.9, vb.y + vb.height / 2);
+      await page.waitForTimeout(600);
+      const vol = Number(await id('volume').getAttribute('aria-valuenow'));
+      assert.ok(vol >= 85 && vol <= 95, 'volume ~90: ' + vol);
       await id('metronome').click();
       await id('player-play').click();
       await closeSheet();

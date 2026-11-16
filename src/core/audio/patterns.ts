@@ -20,6 +20,9 @@ export const PATTERNS: { id: PatternId; label: string }[] = [
   { id: 'bass-chord', label: 'Bass + chord' },
 ];
 
+/** Per-note gain that keeps a chord's overall loudness about the same whatever its size. */
+export const chordGain = (noteCount: number) => 0.5 / Math.sqrt(Math.max(1, noteCount));
+
 export interface NoteEvent {
   /** seconds from the start */
   time: number;
@@ -82,8 +85,12 @@ export function buildSchedule(
       if (!notesOf.length) return;
       const start = t0 + (ci * barLen) / n;
       const span = barLen / n;
+      // a six-note chord must not be six times louder than a single note
+      // (patterns that play notes one at a time are scaled by how many sound together)
+      const together = opts.pattern === 'arp-up' || opts.pattern === 'arp-updown' ? 2 : opts.pattern === 'bass-chord' ? Math.ceil(notesOf.length / 2) : notesOf.length;
+      const scale = chordGain(together);
       const add = (time: number, midi: number, dur: number, vel: number) => {
-        if (time < start + span - 1e-6) notes.push({ time, midi, dur: Math.min(dur, start + span - time + 0.05), vel });
+        if (time < start + span - 1e-6) notes.push({ time, midi, dur: Math.min(dur, start + span - time + 0.05), vel: vel * scale });
       };
       const strum = (time: number, down: boolean, vel: number, dur: number) => {
         const order = down ? notesOf : [...notesOf].reverse().slice(0, Math.max(3, notesOf.length - 2));

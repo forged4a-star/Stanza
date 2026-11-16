@@ -7,6 +7,8 @@ import { getDb } from '../db/client';
 import { shareFile } from '../platform/share';
 import { useSettings } from '../store/settings';
 import { toast } from '../ui/Dialogs';
+import { VolumeSlider } from '../features/chords/VolumeSlider';
+import { engineStats, previewChord } from '../audio/engine';
 import { useEffect, useState } from 'react';
 import { loadSyncConfig, runSync, saveSyncConfig, startAutoSync, useSync } from '../sync/runner';
 import { Button, Field } from '../ui/kit';
@@ -45,6 +47,11 @@ export default function SettingsScreen() {
         <ToggleRow label="Rhyme scheme letters" value={s.showScheme} onChange={(v) => s.set({ showScheme: v })} />
         <ToggleRow label="Sound highlighting" value={s.highlight} onChange={(v) => s.set({ highlight: v })} />
         <ToggleRow label="Cliché and repetition flags" hint="Off by default" value={s.clicheFlags} onChange={(v) => s.set({ clicheFlags: v })} />
+        <View style={{ paddingHorizontal: space.lg }}>
+          <SectionTitle>Chord player</SectionTitle>
+          <VolumeSlider />
+          <AudioInfo />
+        </View>
         <View style={{ paddingHorizontal: space.lg }}>
           <SectionTitle>Capture</SectionTitle>
         </View>
@@ -121,6 +128,32 @@ function SyncSettings() {
           {sync.status === 'ok' ? `Synced: ${sync.message}` : sync.message || `Last sync: ${when}`}
         </Text>
       </Row>
+    </View>
+  );
+}
+
+/** What the audio engine is doing: useful when something sounds wrong. */
+function AudioInfo() {
+  const t = useTheme();
+  const [info, setInfo] = useState('');
+  return (
+    <View style={{ gap: space.sm }}>
+      <Button
+        compact
+        title="Play a test chord"
+        icon="musical-note-outline"
+        onPress={() => {
+          previewChord('C', useSettings.getState().instrument);
+          const e = engineStats();
+          setInfo(`Output ${e.sampleRate} Hz · ${e.buffers} sounds ready · ${e.voices} notes active · volume ${Math.round(e.volume * 100)}%`);
+        }}
+        testID="audio-test"
+      />
+      {!!info && (
+        <Text style={{ color: t.textDim, fontSize: font.small }} testID="audio-info">
+          {info}
+        </Text>
+      )}
     </View>
   );
 }

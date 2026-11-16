@@ -20,6 +20,7 @@ import { toast } from '../../ui/Dialogs';
 import { Button, Chip, Icon, IconButton, Row, SectionTitle, Segmented, ToggleRow } from '../../ui/kit';
 import { font, radius, space, useTheme } from '../../ui/theme';
 import { GuitarDiagram, PianoKeys } from './ChordDiagram';
+import { VolumeSlider } from './VolumeSlider';
 import { FN_COLOURS } from './ChordPicker';
 import { CircleOfFifths } from './CircleOfFifths';
 import { playScope, stopPlayer, togglePlay, usePlayer } from './player';
@@ -157,6 +158,7 @@ function PlayTab() {
         ))}
       </Row>
       <BpmControl />
+      <VolumeSlider />
       <Row style={{ marginTop: space.lg, justifyContent: 'center', gap: space.lg }}>
         <Pressable
           onPress={() => (player.playing ? stopPlayer() : playScope(scope))}

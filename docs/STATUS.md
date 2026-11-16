@@ -321,3 +321,29 @@ that only exists natively is marked *not run on a device*.
   reopens the keyboard.
 - **Faster updates (OTA)**: waiting on an Expo account and token.
 - **Fixes and requests from use**: waiting on your list.
+
+## 1.1 audio audit (crackly after changing chords; too quiet)
+
+Found by reading the native engine's source, not just testing in a browser:
+- **Sample-rate bug (introduced in round 3)**: sounds were rendered at 22.05 kHz,
+  but the native engine plays buffers frame-for-frame without converting. On a
+  44.1/48 kHz phone that is ~2x too fast: too high, too short, "weird".
+  Browsers convert automatically, which hid it. Now rendered at the device rate.
+- **Fading a re-struck or stolen note cancelled other notes' volume automation**
+  on the same pooled gain node (strums re-strike constantly). Replaced pooling
+  with one volume node per note, silent until its start, disconnected as soon
+  as it finishes (source and volume node), by audio time.
+- **Per-note `onended` callbacks** (a native subscription per note) removed.
+- **Level**: notes were ~5 % of full scale. Notes are now normalised to one
+  level, chord notes scaled by how many sound together (arpeggios and
+  bass+chord patterns scaled by how many sound at once), and a transparent
+  soft limiter (identical below 0.8, smooth roll-off above) protects the top.
+- **Volume slider** (Chords → Play, the chord picker, Settings): follows the
+  finger, saved when you let go, plays a short note so you can hear the level.
+  Default 70 %.
+- Chords you are likely to try are rendered in the background when the picker
+  opens; pad rendering is ~3x faster.
+- Settings → Chord player → "Play a test chord" shows output rate, sounds
+  ready, notes active and volume.
+- Tested with a fake of the native engine that is strict about the same things
+  (rate, stop-before-start, cancelled automation). Not yet heard on a phone.

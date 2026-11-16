@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { create } from 'zustand';
-import { previewChord } from '../../audio/engine';
+import { prepareChords, previewChord } from '../../audio/engine';
 import { suggestNext } from '../../core/music/suggest';
 import { diatonicChords, keyPrefersFlats, noteName, parseChord, parseKey, QUALITY_BY_SUFFIX } from '../../core/music/theory';
 import { useSettings } from '../../store/settings';
@@ -14,6 +14,7 @@ import { BottomSheet } from '../../ui/BottomSheet';
 import { Button, Chip, Icon, IconButton, Row, SectionTitle } from '../../ui/kit';
 import { font, radius, space, useTheme } from '../../ui/theme';
 import { GuitarDiagram, PianoKeys } from './ChordDiagram';
+import { VolumeSlider } from './VolumeSlider';
 
 export type PickerTarget =
   | { kind: 'bar'; sectionId: string; bar: number | null; slot: number }
@@ -89,6 +90,14 @@ export function ChordPicker() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target]);
 
+  // warm the chords you're likely to try, in the background, so hearing them is instant
+  useEffect(() => {
+    if (!target) return;
+    const tm = setTimeout(() => void prepareChords(inKey, instrument, doc?.song.capo ?? 0), 300);
+    return () => clearTimeout(tm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, instrument, doc?.song.key]);
+
   const name = root === null ? null : noteName(root, flats) + quality + (bass !== null && bass !== root ? '/' + noteName(bass, flats) : '');
   const prev = target ? previousChord(target) : null;
   const ideas = useMemo(() => (key ? suggestNext(prev, key).slice(0, 6) : []), [key?.tonic, key?.mode, prev]);
@@ -152,6 +161,9 @@ export function ChordPicker() {
             <GuitarDiagram chord={name} capo={doc?.song.capo ?? 0} size={0.75} index={shape % 4} />
           </Pressable>
         )}
+      </View>
+      <View style={{ paddingHorizontal: space.lg }}>
+        <VolumeSlider compact />
       </View>
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl }} keyboardShouldPersistTaps="handled">
         {name && (

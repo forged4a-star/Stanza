@@ -95,7 +95,17 @@ function pad(f: number, dur: number, sr: number, vel: number): Float32Array {
       const amp = (vel * 0.1) / h / Math.pow(h, 0.5);
       const w = (2 * Math.PI * fd * h) / sr;
       const ph = h * 1.7 + detune * 10;
-      for (let i = 0; i < len; i++) out[i] += amp * Math.sin(w * i + ph);
+      // rotating phasor: one multiply-add per sample instead of a sin() call
+      const cw = Math.cos(w);
+      const sw = Math.sin(w);
+      let re = Math.cos(ph);
+      let im = Math.sin(ph);
+      for (let i = 0; i < len; i++) {
+        out[i] += amp * im;
+        const nre = re * cw - im * sw;
+        im = re * sw + im * cw;
+        re = nre;
+      }
     }
   }
   // gentle one-pole low-pass for warmth

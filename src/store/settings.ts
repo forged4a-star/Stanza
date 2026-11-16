@@ -38,6 +38,8 @@ export interface Settings {
   showChords: boolean;
   /** show chords as Roman numerals (needs a song key) */
   romanChords: boolean;
+  /** chord player master volume, 0..1 */
+  volume: number;
   /** chord player pattern and metronome */
   pattern: import('../core/audio/patterns').PatternId;
   metronome: boolean;
@@ -70,6 +72,7 @@ export const DEFAULT_SETTINGS: Settings = {
   preferFlats: false,
   showChords: false,
   romanChords: false,
+  volume: 0.7,
   pattern: 'strum-folk',
   metronome: false,
   chordSheet: false,
