@@ -360,3 +360,26 @@ Found by reading the native engine's source, not just testing in a browser:
 - Tested: unit tests for the timing model (11), browser test for build, save,
   play, edit, delete. Not yet heard on a phone. Lint could not run in this
   environment (no network to set up ESLint); typecheck and all tests pass.
+
+## 1.1 standard chord shapes + least-movement fingering
+
+- **Standard shapes first.** `src/core/music/shapeLibrary.ts` holds the shapes
+  guitarists actually learn: open C A G E D, Am Em Dm, F, Bm, sevenths, maj7,
+  m7, sus2/4, add9, 6, dim, aug, common slash chords (G/B, D/F#, C/G...), plus
+  movable E-form and A-form barre shapes for every root (major, minor, 7, m7,
+  maj7, sus, 6, m6, m7b5, dim7, power chords). The old search is only a
+  fallback for chords not covered. Diagrams and the chord player use these.
+- Verified by tests: every shape for every root contains only notes of its
+  chord, with the root (or slash bass) as the lowest note.
+- Sources: the search tool confirmed Em, Am and Dm fingerings; the reference
+  pages (Wikibooks, MusicRadar) could not be fetched from this environment, so
+  the rest is written from standard CAGED teaching and checked by the tests
+  above, not against a printed chart. Worth a glance at a few diagrams.
+- **Least movement.** `fingering.ts` scores a change between two shapes
+  (fingers that stay, slides, lifts, hand travel up the neck, forming or
+  releasing a barre) and finds the cheapest set of shapes for a whole
+  progression, including the jump back to the start. Chords → Shapes shows
+  "Easiest way to play the changes" ("C → F: 2 fingers stay · 3 move") and the
+  diagrams use the chosen shapes. "Avoid barre chords" is a beginner toggle.
+- Test fix: the chord-sheet browser test reloaded before the preference was
+  written; it now waits.

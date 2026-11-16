@@ -1,13 +1,12 @@
 /** Guitar chord box and a small piano keyboard, drawn with SVG. */
 import Svg, { Circle, Line, Rect, Text as SvgText } from 'react-native-svg';
 import { Text, View } from 'react-native';
-import { guitarShapes, pianoVoicing } from '../../core/music/voicings';
+import { guitarShapes, pianoVoicing, type GuitarShape } from '../../core/music/voicings';
 import { font, useTheme } from '../../ui/theme';
 
-export function GuitarDiagram({ chord, capo = 0, size = 1, index = 0 }: { chord: string; capo?: number; size?: number; index?: number }) {
+export function GuitarDiagram({ chord, capo = 0, size = 1, index = 0, shape: given }: { chord: string; capo?: number; size?: number; index?: number; shape?: GuitarShape }) {
   const t = useTheme();
-  const shapes = guitarShapes(chord, { capo, max: index + 1 });
-  const shape = shapes[index] ?? shapes[0];
+  const shape = given ?? (guitarShapes(chord, { capo, max: index + 1 })[index] ?? guitarShapes(chord, { capo, max: 1 })[0]);
   const W = 92 * size;
   const H = 112 * size;
   if (!shape) return <Text style={{ color: t.textFaint, fontSize: font.small, width: W }}>No shape</Text>;

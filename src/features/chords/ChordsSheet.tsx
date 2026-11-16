@@ -11,6 +11,7 @@ import { PATTERNS } from '../../core/audio/patterns';
 import { customPatternId, emptyStrum, type CustomStrum } from '../../core/audio/strums';
 import { StrumEditor } from './StrumEditor';
 import { INSTRUMENTS, tapTempo } from '../../core/audio/synth';
+import { describeMovement, easiestFingering } from '../../core/music/fingering';
 import { detectChord, type DetectedChord } from '../../core/music/detect';
 import { PROGRESSIONS, realiseProgression, suggestNext } from '../../core/music/suggest';
 import { keyName, parseChord, parseKey, romanNumeral, type Key } from '../../core/music/theory';
@@ -351,6 +352,18 @@ function ShapesTab() {
     }
     return set;
   }, [doc]);
+  // chords in the order they are played (consecutive repeats collapsed), then the least-effort shapes for them
+  const sequence = useMemo(() => {
+    const seq: string[] = [];
+    for (const s of doc.sections) for (const b of s.bars) for (const c of b.chords) if (seq[seq.length - 1] !== c) seq.push(c);
+    return seq;
+  }, [doc]);
+  const path = useMemo(() => easiestFingering(sequence, { capo: doc.song.capo, avoidBarres: settings.avoidBarres, loop: true }), [sequence, doc.song.capo, settings.avoidBarres]);
+  const chosen = useMemo(() => {
+    const m = new Map<string, (typeof path)[number]['shape']>();
+    for (const st of path) if (!m.has(st.chord)) m.set(st.chord, st.shape);
+    return m;
+  }, [path]);
   return (
     <View>
       <Row style={{ justifyContent: 'space-between' }}>
@@ -370,7 +383,20 @@ function ShapesTab() {
       <ToggleRow label="Roman numerals" hint={key ? `Show chords as numbers in ${keyName(key)}` : 'Set a song key first'} value={settings.romanChords} onChange={(v) => settings.set({ romanChords: v })} testID="toggle-roman" />
       <ToggleRow label="Place chords over lyrics" hint="Shows a tap target above every syllable" value={settings.showChords} onChange={(v) => settings.set({ showChords: v })} testID="toggle-place-chords" />
       {doc.song.capo > 0 && <Text style={{ color: t.textDim, fontSize: font.small, marginTop: space.sm }}>Shapes are shown relative to the capo (they sound as written).</Text>}
+      <ToggleRow label="Avoid barre chords" hint="Picks open shapes where they exist" value={settings.avoidBarres} onChange={(v) => settings.set({ avoidBarres: v })} testID="toggle-avoid-barres" />
       {chords.length === 0 && <Text style={{ color: t.textDim, marginTop: space.md }}>No chords in this song yet.</Text>}
+      {path.length > 1 && (
+        <View testID="easy-fingering" style={{ marginTop: space.sm }}>
+          <SectionTitle>Easiest way to play the changes</SectionTitle>
+          <Text style={{ color: t.textDim, fontSize: font.small, marginBottom: space.xs }}>Standard shapes, picked so your hand moves as little as possible from chord to chord (including back to the start).</Text>
+          {path.slice(1).map((st, i) => (
+            <Text key={i} style={{ color: t.text, fontSize: font.small + 1, paddingVertical: 2 }}>
+              {path[i].chord} → {st.chord}
+              <Text style={{ color: t.textDim }}>  {describeMovement(st.from)}</Text>
+            </Text>
+          ))}
+        </View>
+      )}
       <View style={styles.shapes} testID="shapes">
         {chords.map((c) => (
           <Pressable key={c} onPress={() => previewChord(c, settings.instrument, doc.song.capo)} style={[styles.shape, { backgroundColor: t.surface2 }]} accessibilityRole="button" accessibilityLabel={`Play ${c}`}>
@@ -378,7 +404,7 @@ function ShapesTab() {
               {c}
               {settings.romanChords && key ? <Text style={{ color: t.textDim, fontSize: font.small }}> {romanNumeral(c, key)}</Text> : null}
             </Text>
-            <GuitarDiagram chord={c} capo={doc.song.capo} size={0.9} />
+            <GuitarDiagram chord={c} capo={doc.song.capo} size={0.9} shape={chosen.get(c)} />
             <PianoKeys chord={c} width={130} />
           </Pressable>
         ))}

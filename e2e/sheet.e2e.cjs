@@ -116,6 +116,7 @@ const shots = process.argv[2] || null;
       assert.match(row, /Em/);
       assert.match(row, /ri\s*ver/);
       await id('toggle-sheet').click();
+      await page.waitForTimeout(700); // let the preference reach the database
       await page.reload();
       await id('chord-sheet').waitFor({ timeout: 30000 });
     });

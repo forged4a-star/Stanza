@@ -2,6 +2,7 @@
  * Chord diagrams. Guitar shapes are searched (standard tuning, any capo) and
  * scored for playability; piano voicings are the chord tones in close position.
  */
+import { libraryShapes } from './shapeLibrary';
 import { chordPcs, mod12, parseChord, type Chord } from './theory';
 
 /** Standard tuning, low E to high E, as MIDI notes. */
@@ -15,6 +16,9 @@ export interface GuitarShape {
   /** barre across strings at this fret, if any */
   barre: { fret: number; from: number; to: number } | null;
   score: number;
+  /** where the shape comes from: a standard textbook shape, or found by search */
+  source?: 'standard' | 'search';
+  label?: string;
 }
 
 /**
@@ -22,10 +26,18 @@ export interface GuitarShape {
  * up to the 12th fret and every string combination, then scores: covers all
  * important tones, correct bass, open strings, low position, few fingers.
  */
-export function guitarShapes(name: string, opts: { capo?: number; max?: number } = {}): GuitarShape[] {
+export function guitarShapes(name: string, opts: { capo?: number; max?: number; alsoSearch?: boolean } = {}): GuitarShape[] {
   const chord = parseChord(name);
   if (!chord) return [];
   const capo = opts.capo ?? 0;
+  // standard textbook shapes first (relative to the capo, so shift the chord down by it)
+  const standard: GuitarShape[] = libraryShapes(mod12(chord.root - capo), chord.quality.suffix, mod12((chord.bass ?? chord.root) - capo)).map((l) => {
+    const fretted = l.frets.filter((x) => x > 0);
+    const minF = fretted.length ? Math.min(...fretted) : 0;
+    const maxF = fretted.length ? Math.max(...fretted) : 0;
+    return { frets: l.frets, baseFret: maxF <= 4 ? 1 : minF, barre: l.barre, score: 100 - l.rank, source: 'standard', label: l.label };
+  });
+  if (standard.length >= (opts.max ?? 4) && !opts.alsoSearch) return standard.slice(0, opts.max ?? 4);
   const tuning = GUITAR_TUNING.map((n) => n + capo);
   const pcs = chordPcs(chord);
   const bass = chord.bass ?? chord.root;
@@ -64,7 +76,9 @@ export function guitarShapes(name: string, opts: { capo?: number; max?: number }
     walk(0);
   }
   shapes.sort((a, b) => b.score - a.score);
-  return shapes.slice(0, opts.max ?? 4);
+  const known = new Set(standard.map((x) => x.frets.join(',')));
+  const merged = [...standard, ...shapes.filter((x) => !known.has(x.frets.join(',')))];
+  return merged.slice(0, opts.max ?? 4);
 }
 
 function essentialTones(c: Chord): number[] {
@@ -120,7 +134,7 @@ function evaluate(frets: number[], tuning: number[], bass: number, essential: nu
   score += [...pcs].filter((p) => have.has(p)).length * 0.5;
   // mutes on the top string sound thin
   if (frets[5] < 0) score -= 3;
-  return { frets: [...frets], baseFret: maxF <= 4 ? 1 : minF, barre, score };
+  return { frets: [...frets], baseFret: maxF <= 4 ? 1 : minF, barre, score, source: 'search' };
 }
 
 /** Piano: chord tones as MIDI notes in close position from around middle C (bass separate). */

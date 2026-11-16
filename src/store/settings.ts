@@ -47,6 +47,8 @@ export interface Settings {
   metronome: boolean;
   /** show the song as a chord sheet (chords over words) instead of the editor */
   chordSheet: boolean;
+  /** guitar shapes: skip barre chords (beginner mode) */
+  avoidBarres: boolean;
   /** lyric size in the chord sheet */
   sheetSize: number;
   /** chord suggestion extras */
@@ -79,6 +81,7 @@ export const DEFAULT_SETTINGS: Settings = {
   customStrums: [],
   metronome: false,
   chordSheet: false,
+  avoidBarres: false,
   sheetSize: 20,
   suggestBorrowed: false,
   suggestSecondary: false,
