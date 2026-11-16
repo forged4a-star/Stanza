@@ -1,0 +1,46 @@
+{
+  "name": "stanza-desktop",
+  "productName": "Stanza",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Stanza, an offline-first songwriting app, as a desktop app",
+  "author": "Stanza",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "~45.3.3",
+    "electron-builder": "^26.18.0",
+    "playwright-core": "1.63.0"
+  },
+  "build": {
+    "appId": "app.stanza.songwriter.desktop",
+    "productName": "Stanza",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "app/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "artifactName": "Stanza-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Stanza-Portable-${version}.${ext}"
+    }
+  }
+}

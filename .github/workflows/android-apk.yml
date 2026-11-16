@@ -10,6 +10,13 @@ on:
       - 'e2e/**'
       - 'server/**'
       - 'targets/**'
+      # the web and desktop versions do not change the phone app
+      - 'desktop/**'
+      - 'public/**'
+      - 'scripts/pages-build.sh'
+      - 'scripts/finish-web.mjs'
+      - '.github/workflows/web.yml'
+      - '.github/workflows/desktop.yml'
   workflow_dispatch:
     inputs:
       all_architectures:

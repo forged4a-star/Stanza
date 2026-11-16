@@ -1,0 +1,120 @@
+name: Build Desktop App
+
+# Builds the Windows installer (and a portable .exe) for Stanza and publishes them as a release.
+# Started by hand: Actions > Build Desktop App > Run workflow.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: desktop
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install JS dependencies
+        run: npm ci --no-audit --no-fund
+
+      # the desktop app is the web app, served from inside the program
+      - name: Build the web app
+        env:
+          CI: '1'
+        run: npx expo export --platform web --output-dir desktop/app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stanza-web-for-desktop
+          path: desktop/app
+          include-hidden-files: true
+
+  smoke:
+    # starts the real app, writes a song, quits, starts it again and checks the song is still there
+    needs: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: stanza-web-for-desktop
+          path: desktop/app
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci --no-audit --no-fund
+
+      - name: Install a virtual screen
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Start the app and check it keeps songs
+        working-directory: desktop
+        env:
+          CI: '1'
+        run: xvfb-run -a node smoke.cjs
+
+  package:
+    needs: smoke
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: stanza-web-for-desktop
+          path: desktop/app
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci --no-audit --no-fund
+
+      - name: Build the installer and the portable app
+        working-directory: desktop
+        run: npx electron-builder --win --publish never
+
+      # the same check as above, on the installed program as Windows users get it
+      - name: Start the built app and check it keeps songs
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          $env:STANZA_PACKAGED_EXE = (Resolve-Path "dist/win-unpacked/Stanza.exe").Path
+          node smoke.cjs
+
+      - name: Publish a release with the installers
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-${{ github.run_number }}
+          name: Stanza for Windows, build ${{ github.run_number }}
+          body: |
+            Stanza as a Windows app. It works with no internet; your songs stay on this computer.
+
+            - **Stanza-Setup**: the installer. Run it and follow the steps.
+            - **Stanza-Portable**: one file, no install. Keep it anywhere and double-click it.
+
+            Windows will say it "protected your PC" because the app is not signed with a paid certificate.
+            Click **More info**, then **Run anyway**.
+          files: |
+            desktop/dist/Stanza-Setup-*.exe
+            desktop/dist/Stanza-Portable-*.exe
+          make_latest: false

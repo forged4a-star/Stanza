@@ -47,3 +47,6 @@ scripts/raw/cmudict.dict
 dist-e2e/
 stanza-server.db*
 stanza-source.zip
+
+# Desktop and web builds
+dist-pages/

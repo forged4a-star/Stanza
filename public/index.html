@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#141414" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>%WEB_TITLE%</title>
+    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <style id="expo-reset">
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        overflow: hidden;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+    </style>
+    <script>
+      /*
+       * Installable-app details and the offline worker. The app may be hosted in a
+       * sub-folder (GitHub Pages: /Stanza), so the folder is read from where this
+       * page's own script bundle was loaded.
+       */
+      document.addEventListener('DOMContentLoaded', function () {
+        var s = document.querySelector('script[src*="/_expo/"]');
+        var base = s ? s.getAttribute('src').split('/_expo/')[0] : '';
+        var add = function (rel, href) {
+          var l = document.createElement('link');
+          l.rel = rel;
+          l.href = href;
+          document.head.appendChild(l);
+        };
+        add('manifest', base + '/manifest.webmanifest');
+        add('apple-touch-icon', base + '/apple-touch-icon.png');
+        // Only on a real web address; the desktop app and file previews skip this.
+        if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return;
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register(base + '/sw.js', { scope: base + '/' }).catch(function () {});
+        });
+      });
+    </script>
+  </head>
+
+  <body>
+    <noscript> You need to enable JavaScript to run this app. </noscript>
+    <div id="root"></div>
+  </body>
+</html>

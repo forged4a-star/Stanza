@@ -470,3 +470,29 @@ Found by reading the native engine's source, not just testing in a browser:
   walk). It needs background audio recording, which has to be set up in the native
   build and cannot be tested here. Not started rather than half done.
 - Checks: 228 unit tests and all 13 browser suites pass. Lint cannot run here.
+
+## PC versions: hosted web app and a Windows installer
+
+- **Web app** (`.github/workflows/web.yml`). The web build is hosted with GitHub
+  Pages at `https://<owner>.github.io/Stanza/`. It is an installable app (manifest
+  + icons: Chrome/Edge "Install") and works offline: a service worker (`public/sw.js`)
+  stores every file of the version when it installs, and always uses the network
+  first when online, so a new version arrives on the next visit. Songs live in the
+  browser's own database on that computer. The special headers the dev server adds
+  turned out not to be needed (songs persist without them).
+  **Needs one switch from the repo owner:** Settings > Pages > Source: GitHub Actions
+  (the GitHub API for this is blocked from my session). It publishes from `main`
+  only; other branches build the site as a downloadable artifact.
+- **Windows installer** (`.github/workflows/desktop.yml`, run by hand). The same web
+  app inside Electron (`desktop/`), served from inside the program (no internet), as
+  `Stanza-Setup-<v>.exe` and a single-file `Stanza-Portable-<v>.exe`, published as a
+  release `desktop-<n>`. Unsigned, so Windows SmartScreen asks "More info > Run anyway".
+- Tests: `e2e/pages.e2e.cjs` (served like Pages: sub-folder, manifest, offline after
+  one visit, deep links) and `desktop/smoke.cjs` (starts the real app, writes a song,
+  quits, restarts, checks the song; run against the loose files and the packaged
+  archive; CI runs it on Linux and on the built Windows app).
+- Not tested: the Windows build itself (built only on GitHub), real installs on
+  Windows, audio through speakers/microphone on a PC, Safari/Firefox.
+- Differences from the phone app: no screenshot import, home-screen widget or
+  app-icon shortcut. Phone and PC do not share songs unless the optional sync
+  server is set up.
