@@ -41,7 +41,9 @@ export interface Settings {
   /** chord player master volume, 0..1 */
   volume: number;
   /** chord player pattern and metronome */
-  pattern: import('../core/audio/patterns').PatternId;
+  pattern: import('../core/audio/patterns').PatternId | string;
+  /** strum patterns you made (the pattern id is `custom:<id>`) */
+  customStrums: import('../core/audio/strums').CustomStrum[];
   metronome: boolean;
   /** show the song as a chord sheet (chords over words) instead of the editor */
   chordSheet: boolean;
@@ -74,6 +76,7 @@ export const DEFAULT_SETTINGS: Settings = {
   romanChords: false,
   volume: 0.7,
   pattern: 'strum-folk',
+  customStrums: [],
   metronome: false,
   chordSheet: false,
   sheetSize: 20,

@@ -6,6 +6,7 @@
 import type { ChordBar } from '../model';
 import { guitarShapes, GUITAR_TUNING } from '../music/voicings';
 import { chordVoicing, parseChord } from '../music/theory';
+import { SPREAD_SECONDS, isCustomPattern, strokesFor, type CustomStrum } from './strums';
 import type { Instrument } from './synth';
 
 export type PatternId = 'block' | 'pulse' | 'strum-folk' | 'strum-pop' | 'arp-up' | 'arp-updown' | 'bass-chord';
@@ -64,7 +65,7 @@ export function chordNotes(name: string, inst: Instrument, capo = 0): number[] {
 
 export function buildSchedule(
   bars: ChordBar[],
-  opts: { bpm: number; timeSig: [number, number]; pattern: PatternId; instrument: Instrument; metronome: boolean; capo?: number }
+  opts: { bpm: number; timeSig: [number, number]; pattern: PatternId | string; instrument: Instrument; metronome: boolean; capo?: number; customStrums?: CustomStrum[] }
 ): Schedule {
   const [beats, unit] = opts.timeSig;
   const beat = (60 / opts.bpm) * (4 / unit);
@@ -96,6 +97,27 @@ export function buildSchedule(
         const order = down ? notesOf : [...notesOf].reverse().slice(0, Math.max(3, notesOf.length - 2));
         order.forEach((m, k) => add(time + k * strumGap, m, dur, vel * (down ? 1 : 0.75)));
       };
+      // a custom strum (a missing one falls back to the folk strum)
+      if (isCustomPattern(opts.pattern)) {
+        const strum = (opts.customStrums ?? []).find((c) => `custom:${c.id}` === opts.pattern);
+        if (strum) {
+          const gap = opts.instrument === 'piano' ? Math.min(0.004, SPREAD_SECONDS[strum.spread]) : SPREAD_SECONDS[strum.spread];
+          for (const st of strokesFor(strum, 60 / opts.bpm, span, start - t0)) {
+            const t = start + st.at;
+            if (st.kind === 'mute') {
+              // a muted chuck: every string, very short and quiet
+              notesOf.forEach((m, k) => add(t + k * 0.003, m, st.dur, st.vel));
+            } else if (st.kind === 'down') {
+              notesOf.forEach((m, k) => add(t + k * gap, m, st.dur, st.vel));
+            } else {
+              // up strokes catch the higher strings, from the top down
+              [...notesOf].reverse().slice(0, Math.max(3, notesOf.length - 2)).forEach((m, k) => add(t + k * gap, m, st.dur, st.vel * 0.9));
+            }
+          }
+          return;
+        }
+        opts = { ...opts, pattern: 'strum-folk' };
+      }
       switch (opts.pattern) {
         case 'block':
           strum(start, true, 0.8, span);

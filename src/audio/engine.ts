@@ -13,6 +13,7 @@
  */
 import { AudioContext, type AudioBuffer, type AudioBufferSourceNode, type GainNode } from 'react-native-audio-api';
 import { buildSchedule, chordGain, chordNotes, type PatternId, type Schedule } from '../core/audio/patterns';
+import type { CustomStrum } from '../core/audio/strums';
 import { softClipCurve } from '../core/audio/softclip';
 import { renderClick, renderNote, type Instrument } from '../core/audio/synth';
 import type { ChordBar } from '../core/model';
@@ -265,7 +266,8 @@ export function engineStats() {
 export interface TransportOptions {
   bpm: number;
   timeSig: [number, number];
-  pattern: PatternId;
+  pattern: PatternId | string;
+  customStrums?: CustomStrum[];
   instrument: Instrument;
   metronome: boolean;
   loop: boolean;

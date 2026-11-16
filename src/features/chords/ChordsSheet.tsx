@@ -8,6 +8,8 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions
 import { previewChord } from '../../audio/engine';
 import { startMic } from '../../audio/mic';
 import { PATTERNS } from '../../core/audio/patterns';
+import { customPatternId, emptyStrum, type CustomStrum } from '../../core/audio/strums';
+import { StrumEditor } from './StrumEditor';
 import { INSTRUMENTS, tapTempo } from '../../core/audio/synth';
 import { detectChord, type DetectedChord } from '../../core/music/detect';
 import { PROGRESSIONS, realiseProgression, suggestNext } from '../../core/music/suggest';
@@ -144,7 +146,9 @@ function PlayTab() {
   const player = usePlayer();
   const names = sectionDisplayNames(doc.sections);
   const playable = doc.sections.map((s, i) => ({ s, i })).filter(({ s }) => s.bars.length || s.melody.length);
-  const [scope, setScope] = useState<string>(player.scope ?? 'song');
+  const [scope, setScope] = useState<string>(player.scope && player.scope !== 'strum-preview' ? player.scope : 'song');
+  const [strumEditor, setStrumEditor] = useState<{ strum: CustomStrum; existing: boolean } | null>(null);
+  const selectedCustom = settings.customStrums.find((c) => customPatternId(c) === settings.pattern) ?? null;
   const restart = () => {
     if (usePlayer.getState().playing) playScope(usePlayer.getState().scope ?? scope);
   };
@@ -186,7 +190,22 @@ function PlayTab() {
         {PATTERNS.map((p) => (
           <Chip key={p.id} label={p.label} selected={settings.pattern === p.id} onPress={() => (settings.set({ pattern: p.id }), setTimeout(restart, 0))} />
         ))}
+        {settings.customStrums.map((c) => (
+          <Chip
+            key={c.id}
+            label={`★ ${c.name}`}
+            selected={settings.pattern === customPatternId(c)}
+            onPress={() => (settings.set({ pattern: customPatternId(c) }), setTimeout(restart, 0))}
+            onLongPress={() => setStrumEditor({ strum: c, existing: true })}
+            testID={`custom-${c.name}`}
+          />
+        ))}
       </Row>
+      <Row style={{ marginTop: space.sm }}>
+        <Button compact icon="add" title="New strum" onPress={() => setStrumEditor({ strum: emptyStrum(), existing: false })} testID="new-strum" />
+        {selectedCustom && <Button compact icon="create-outline" title={`Edit "${selectedCustom.name}"`} onPress={() => setStrumEditor({ strum: selectedCustom, existing: true })} testID="edit-strum" />}
+      </Row>
+      <StrumEditor initial={strumEditor?.strum ?? null} existing={!!strumEditor?.existing} onClose={() => (setStrumEditor(null), setTimeout(restart, 0))} />
     </View>
   );
 }

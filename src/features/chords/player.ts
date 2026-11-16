@@ -1,6 +1,7 @@
 /** Which section (or the whole song) is playing, and which bar is sounding. */
 import { create } from 'zustand';
 import { startTransport, stopTransport } from '../../audio/engine';
+import type { CustomStrum } from '../../core/audio/strums';
 import type { ChordBar, SongDoc } from '../../core/model';
 import { sectionSteps } from '../../core/export/formats';
 import { useSettings } from '../../store/settings';
@@ -31,7 +32,10 @@ export function melodyEvents(doc: SongDoc, sectionIds: string[]) {
   return out;
 }
 
-export function playScope(scope: string, opts: { melody?: boolean; bars?: ChordBar[] } = {}) {
+export function playScope(
+  scope: string,
+  opts: { melody?: boolean; bars?: ChordBar[]; pattern?: string; customStrums?: CustomStrum[]; loop?: boolean } = {}
+) {
   const doc = useSong.getState().doc;
   if (!doc) return;
   const settings = useSettings.getState();
@@ -54,10 +58,11 @@ export function playScope(scope: string, opts: { melody?: boolean; bars?: ChordB
   const sched = startTransport(bars, {
     bpm: doc.song.bpm,
     timeSig: doc.song.timeSig,
-    pattern: settings.pattern,
+    pattern: opts.pattern ?? settings.pattern,
+    customStrums: opts.customStrums ?? settings.customStrums,
     instrument: settings.instrument,
     metronome: settings.metronome,
-    loop: opts.bars ? false : loop,
+    loop: opts.loop ?? (opts.bars ? false : loop),
     capo: doc.song.capo,
     extra,
     onBar: (i) => usePlayer.setState({ bar: map[i]?.bar ?? i, sectionId: map[i]?.sectionId ?? null }),

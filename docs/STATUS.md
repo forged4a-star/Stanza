@@ -347,3 +347,16 @@ Found by reading the native engine's source, not just testing in a browser:
   ready, notes active and volume.
 - Tested with a fake of the native engine that is strict about the same things
   (rate, stop-before-start, cancelled automation). Not yet heard on a phone.
+
+## 1.1 custom strumming
+
+- Chords → Play → Pattern: **New strum** opens an editor. One bar of steps
+  (8 eighths or 16 sixteenths); tap a step to cycle rest, down, soft down, up,
+  soft up, muted chuck. Name it, pick Tight / Normal / Slow sweep, start from a
+  template, and press **Play this strum** to hear it loop; edits restart the
+  loop. Save selects it. Saved strums show as ★ chips (long-press or Edit to
+  change, Delete in the editor). Stored in settings, works offline.
+- Same voice cap, level and audio-clock scheduling as built-in patterns.
+- Tested: unit tests for the timing model (11), browser test for build, save,
+  play, edit, delete. Not yet heard on a phone. Lint could not run in this
+  environment (no network to set up ESLint); typecheck and all tests pass.
