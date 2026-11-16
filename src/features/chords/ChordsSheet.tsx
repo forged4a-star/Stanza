@@ -4,7 +4,7 @@
  * Roman numerals; and a chord detector that listens to the mic.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { previewChord } from '../../audio/engine';
 import { startMic } from '../../audio/mic';
 import { PATTERNS } from '../../core/audio/patterns';
@@ -72,21 +72,80 @@ export function ChordsSheet({ visible, onClose }: { visible: boolean; onClose: (
 
 // ------------------------------------------------------------------ play
 
+/** BPM: type it, step it, or tap it. One place, always in sync with the song. */
+function BpmControl() {
+  const t = useTheme();
+  const doc = useSong((s) => s.doc)!;
+  const player = usePlayer();
+  const taps = useRef<number[]>([]);
+  const [text, setText] = useState(String(Math.round(doc.song.bpm)));
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setText(String(Math.round(doc.song.bpm)));
+  }, [doc.song.bpm, focused]);
+  const restart = () => {
+    if (usePlayer.getState().playing) playScope(usePlayer.getState().scope ?? 'song');
+  };
+  const setBpm = (bpm: number) => {
+    useSong.getState().setMeta({ bpm: Math.max(30, Math.min(300, Math.round(bpm))) });
+    setTimeout(restart, 0);
+  };
+  const commit = () => {
+    setFocused(false);
+    const n = Number(text.replace(/[^0-9.]/g, ''));
+    if (Number.isFinite(n) && n >= 30 && n <= 300) setBpm(n);
+    else setText(String(Math.round(doc.song.bpm)));
+  };
+  return (
+    <View style={{ alignItems: 'center', gap: space.sm, marginTop: space.md }}>
+      <Row style={{ justifyContent: 'center', gap: space.md }}>
+        <Button compact title="−5" onPress={() => setBpm(doc.song.bpm - 5)} testID="bpm-down" />
+        <View style={{ alignItems: 'center', minWidth: 120 }}>
+          <TextInput
+            value={text}
+            onChangeText={setText}
+            onFocus={() => setFocused(true)}
+            onBlur={commit}
+            onSubmitEditing={commit}
+            keyboardType="number-pad"
+            returnKeyType="done"
+            maxLength={3}
+            selectTextOnFocus
+            style={{ color: t.text, fontSize: 40, fontWeight: '700', textAlign: 'center', minWidth: 120, paddingVertical: 0 }}
+            accessibilityLabel="Tempo in beats per minute. Type a number."
+            testID="player-bpm"
+          />
+          <Text style={{ color: t.textDim, fontSize: font.small }}>bpm · tap the number to type</Text>
+        </View>
+        <Button compact title="+5" onPress={() => setBpm(doc.song.bpm + 5)} testID="bpm-up" />
+      </Row>
+      <Button
+        compact
+        title="Tap tempo"
+        icon="hand-left-outline"
+        onPress={() => {
+          const n = Date.now();
+          taps.current = [...taps.current.filter((x) => n - x < 4000), n];
+          const bpm = tapTempo(taps.current);
+          if (bpm) setBpm(bpm);
+        }}
+        testID="tap-tempo"
+      />
+      {player.playing && <Text style={{ color: t.textFaint, fontSize: font.tiny }}>Changes apply straight away.</Text>}
+    </View>
+  );
+}
+
 function PlayTab() {
   const t = useTheme();
   const doc = useSong((s) => s.doc)!;
   const settings = useSettings();
   const player = usePlayer();
-  const taps = useRef<number[]>([]);
   const names = sectionDisplayNames(doc.sections);
   const playable = doc.sections.map((s, i) => ({ s, i })).filter(({ s }) => s.bars.length || s.melody.length);
   const [scope, setScope] = useState<string>(player.scope ?? 'song');
   const restart = () => {
     if (usePlayer.getState().playing) playScope(usePlayer.getState().scope ?? scope);
-  };
-  const setBpm = (bpm: number) => {
-    useSong.getState().setMeta({ bpm: Math.max(30, Math.min(300, Math.round(bpm))) });
-    setTimeout(restart, 0);
   };
   return (
     <View>
@@ -97,6 +156,7 @@ function PlayTab() {
           <Chip key={s.id} label={names[i]} selected={scope === s.id} onPress={() => setScope(s.id)} />
         ))}
       </Row>
+      <BpmControl />
       <Row style={{ marginTop: space.lg, justifyContent: 'center', gap: space.lg }}>
         <Pressable
           onPress={() => (player.playing ? stopPlayer() : playScope(scope))}
@@ -108,29 +168,6 @@ function PlayTab() {
         >
           <Icon name={player.playing ? 'stop' : 'play'} size={30} color={t.accentText} />
         </Pressable>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={{ color: t.text, fontSize: 28, fontWeight: '700' }} testID="player-bpm">
-            {Math.round(doc.song.bpm)}
-          </Text>
-          <Text style={{ color: t.textDim, fontSize: font.small }}>bpm</Text>
-        </View>
-        <View style={{ gap: 4 }}>
-          <Row>
-            <Button compact title="−5" onPress={() => setBpm(doc.song.bpm - 5)} />
-            <Button compact title="+5" onPress={() => setBpm(doc.song.bpm + 5)} />
-          </Row>
-          <Button
-            compact
-            title="Tap tempo"
-            onPress={() => {
-              const n = Date.now();
-              taps.current = [...taps.current.filter((x) => n - x < 4000), n];
-              const bpm = tapTempo(taps.current);
-              if (bpm) setBpm(bpm);
-            }}
-            testID="tap-tempo"
-          />
-        </View>
       </Row>
       <ToggleRow label="Loop" value={player.loop} onChange={(v) => usePlayer.setState({ loop: v })} />
       <ToggleRow label="Metronome" value={settings.metronome} onChange={(v) => (settings.set({ metronome: v }), setTimeout(restart, 0))} testID="metronome" />

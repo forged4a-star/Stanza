@@ -16,6 +16,7 @@ import { useSongAnalysis } from '../../features/editor/useSongAnalysis';
 import { caret, type LineDisplay } from '../../features/editor/LyricLine';
 import { SoundSheet } from '../../features/sound/SoundSheet';
 import { ChordGrid } from '../../features/chords/ChordGrid';
+import { prepareFor } from '../../audio/engine';
 import { ChordPicker, openChordPicker } from '../../features/chords/ChordPicker';
 import { ChordsSheet } from '../../features/chords/ChordsSheet';
 import { stopPlayer } from '../../features/chords/player';
@@ -125,6 +126,14 @@ export default function SongPage() {
   const peers = useCollab((c) => c.peers);
   const openComments = useCollab((c) => c.comments.filter((x) => !x.resolved).length);
   const activeLineId = useSong((x) => x.activeLineId);
+  // warm the sounds this song uses, once, so the first play doesn't stall
+  const warmKey = doc ? `${doc.song.id}:${settings.instrument}:${doc.song.capo}` : '';
+  useEffect(() => {
+    if (!doc) return;
+    const t = setTimeout(() => void prepareFor(doc.sections.flatMap((s) => s.bars), settings.instrument, doc.song.capo), 600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [warmKey]);
   useEffect(() => {
     if (!id) return;
     void connectSong(id);

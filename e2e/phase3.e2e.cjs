@@ -146,8 +146,14 @@ const shots = process.argv[2] || null;
         await page.waitForTimeout(400);
         await id('tap-tempo').click();
       }
-      const bpm = Number(await id('player-bpm').innerText());
+      const bpm = Number(await id('player-bpm').inputValue());
       assert.ok(bpm > 130 && bpm < 170, 'tap tempo ~150: ' + bpm);
+      // typed BPM, on the same screen
+      await id('player-bpm').fill('120');
+      await id('player-bpm').press('Enter');
+      await page.waitForTimeout(200);
+      assert.equal(await id('player-bpm').inputValue(), '120');
+      await id('tap-tempo').click();
       await id('metronome').click();
       await id('player-play').click();
       await closeSheet();

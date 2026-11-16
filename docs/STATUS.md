@@ -271,3 +271,20 @@ that only exists natively is marked *not run on a device*.
   handled; confirmation screen to fix labels before saving. Rule-based, not a
   model. Screenshot import is not built.
 - **AI lyric co-writer**: not built yet (needs a decision on the model).
+
+## Round 3 — chord audio on phones
+
+- **Timing**: notes are placed on the audio clock (`currentTime`) when a loop
+  is queued. Two loops are always queued ahead; a 500 ms timer only tops that
+  up. Bar highlights are timers too, but they only move the display, never the
+  sound.
+- **One AudioContext** for the app. Each (instrument, pitch) is rendered once,
+  at 22.05 kHz, and reused. Sounds for a song are warmed in small steps when it
+  opens, so the first play doesn't stall.
+- **Polyphony cap** of 20 sounding notes; past that the oldest is faded out.
+  Re-striking a pitch replaces its previous note. Finished nodes are released.
+- **Removed a distortion stage**: the earlier "soft limiter" was a waveshaper
+  that distorted every note. It's gone; the master is plain headroom.
+- **BPM**: type it in the tempo field (30–300) next to ±5 and Tap tempo.
+- Verified with a fake audio clock in unit tests and in the browser. Not yet
+  heard on a phone.
