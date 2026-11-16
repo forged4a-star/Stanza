@@ -8,9 +8,11 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions
 import { previewChord } from '../../audio/engine';
 import { startMic } from '../../audio/mic';
 import { PATTERNS } from '../../core/audio/patterns';
+import { decodeStrum } from '../../core/audio/strumCode';
 import { customPatternId, emptyStrum, type CustomStrum } from '../../core/audio/strums';
 import { StrumEditor } from './StrumEditor';
 import { INSTRUMENTS, tapTempo } from '../../core/audio/synth';
+import { capoAdvice, describeCapo } from '../../core/music/capoAdvice';
 import { describeMovement, easiestFingering } from '../../core/music/fingering';
 import { detectChord, type DetectedChord } from '../../core/music/detect';
 import { PROGRESSIONS, realiseProgression, suggestNext } from '../../core/music/suggest';
@@ -19,7 +21,7 @@ import { sectionDisplayNames } from '../../core/model';
 import { useSettings } from '../../store/settings';
 import { findLine, useSong } from '../../store/song';
 import { BottomSheet } from '../../ui/BottomSheet';
-import { toast } from '../../ui/Dialogs';
+import { askText, toast } from '../../ui/Dialogs';
 import { Button, Chip, Icon, IconButton, Row, SectionTitle, Segmented, ToggleRow } from '../../ui/kit';
 import { font, radius, space, useTheme } from '../../ui/theme';
 import { GuitarDiagram, PianoKeys } from './ChordDiagram';
@@ -203,6 +205,21 @@ function PlayTab() {
         ))}
       </Row>
       <Row style={{ marginTop: space.sm }}>
+        <Button
+          compact
+          icon="download-outline"
+          title="Import code"
+          onPress={async () => {
+            const text = await askText('Paste a strum code', '', { placeholder: 'stanza-strum/1/…', ok: 'Add' });
+            if (text === null) return;
+            const r = decodeStrum(text);
+            if (!r.ok) return toast(r.error);
+            settings.set({ customStrums: [...settings.customStrums, r.strum], pattern: customPatternId(r.strum) });
+            toast(`Added "${r.strum.name}" and selected it`);
+            setTimeout(restart, 0);
+          }}
+          testID="import-strum"
+        />
         <Button compact icon="add" title="New strum" onPress={() => setStrumEditor({ strum: emptyStrum(), existing: false })} testID="new-strum" />
         {selectedCustom && <Button compact icon="create-outline" title={`Edit "${selectedCustom.name}"`} onPress={() => setStrumEditor({ strum: selectedCustom, existing: true })} testID="edit-strum" />}
       </Row>
@@ -358,6 +375,7 @@ function ShapesTab() {
     for (const s of doc.sections) for (const b of s.bars) for (const c of b.chords) if (seq[seq.length - 1] !== c) seq.push(c);
     return seq;
   }, [doc]);
+  const capoOptions = useMemo(() => capoAdvice(chords).slice(0, 3), [chords]);
   const path = useMemo(() => easiestFingering(sequence, { capo: doc.song.capo, avoidBarres: settings.avoidBarres, loop: true }), [sequence, doc.song.capo, settings.avoidBarres]);
   const chosen = useMemo(() => {
     const m = new Map<string, (typeof path)[number]['shape']>();
@@ -373,6 +391,24 @@ function ShapesTab() {
           <Button compact title="+" onPress={() => useSong.getState().setMeta({ capo: Math.min(11, doc.song.capo + 1) })} testID="capo-up" />
         </Row>
       </Row>
+      {chords.length >= 2 && (
+        <View style={{ marginTop: space.sm, padding: space.md, borderRadius: radius.md, backgroundColor: t.surface2, gap: space.xs }} testID="capo-help">
+          <Text style={{ color: t.text, fontWeight: '700' }}>Easiest capo for these chords</Text>
+          <Text style={{ color: t.textDim, fontSize: font.small }}>It sounds exactly the same; only the shapes you play change.</Text>
+          {capoOptions.map((o) => (
+            <Row key={o.capo} style={{ justifyContent: 'space-between' }}>
+              <Text style={{ color: t.text, flex: 1, fontSize: font.small + 1 }} testID={`capo-option-${o.capo}`}>
+                {describeCapo(o)}
+              </Text>
+              {o.capo !== doc.song.capo ? (
+                <Button compact title={o.capo ? `Use capo ${o.capo}` : 'No capo'} onPress={() => useSong.getState().setMeta({ capo: o.capo })} testID={`use-capo-${o.capo}`} />
+              ) : (
+                <Text style={{ color: t.accent, fontSize: font.small, fontWeight: '700' }}>in use</Text>
+              )}
+            </Row>
+          ))}
+        </View>
+      )}
       <Row style={{ justifyContent: 'space-between', marginTop: space.sm }}>
         <Text style={{ color: t.text, fontSize: font.body }}>Transpose song{doc.song.key ? ` (${doc.song.key})` : ''}</Text>
         <Row>

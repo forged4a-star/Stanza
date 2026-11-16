@@ -76,13 +76,16 @@ function splitSymbol(sym: string): { root: number; suffix: string; bass: number 
   return { root, suffix: m[2], bass: m[3] ? parseNote(m[3])! : root };
 }
 
-const OPEN_INDEX = OPEN.map(([sym, frets, rank]) => ({ ...splitSymbol(sym), frets: f(frets), rank, sym }));
+/** open-position shapes that still need an index finger across several strings */
+const BARRES: Record<string, { fret: number; from: number; to: number }> = { 'Bm:x24432': { fret: 2, from: 1, to: 5 }, 'A:577655': { fret: 5, from: 0, to: 5 } };
+
+const OPEN_INDEX = OPEN.map(([sym, frets, rank]) => ({ ...splitSymbol(sym), frets: f(frets), rank, sym, key: `${sym}:${frets}` }));
 
 /** Curated shapes for a chord (root pitch class + canonical suffix + bass), best first. */
 export function libraryShapes(root: number, suffix: string, bass: number): LibraryShape[] {
   const out: LibraryShape[] = [];
   for (const o of OPEN_INDEX) {
-    if (o.root === root && o.suffix === suffix && o.bass === bass) out.push({ frets: o.frets, rank: o.rank, barre: o.rank === 9 ? { fret: 5, from: 0, to: 5 } : null, label: o.rank === 9 ? 'barre' : 'open shape' });
+    if (o.root === root && o.suffix === suffix && o.bass === bass) out.push({ frets: o.frets, rank: o.rank, barre: BARRES[o.key] ?? null, label: BARRES[o.key] ? 'barre' : 'open shape' });
   }
   // movable shapes only for plain (non-slash) chords
   if (bass === root) {

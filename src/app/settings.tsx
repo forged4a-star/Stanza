@@ -6,6 +6,7 @@ import { dumpLibrary } from '../db/repo';
 import { getDb } from '../db/client';
 import { shareFile } from '../platform/share';
 import { useSettings } from '../store/settings';
+import { WritingStats } from '../features/stats/WritingStats';
 import { toast } from '../ui/Dialogs';
 import { VolumeSlider } from '../features/chords/VolumeSlider';
 import { engineStats, previewChord } from '../audio/engine';
@@ -53,6 +54,7 @@ export default function SettingsScreen() {
           <VolumeSlider />
           <AudioInfo />
         </View>
+        <WritingStats />
         <View style={{ paddingHorizontal: space.lg }}>
           <SectionTitle>Capture</SectionTitle>
         </View>

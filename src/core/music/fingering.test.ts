@@ -43,7 +43,9 @@ describe('easiest fingering', () => {
     expect(f.shape.barre).toBeNull();
   });
   it('uses only standard shapes when they exist, and avoidBarres drops barres', () => {
-    for (const s of easiestFingering(['G', 'Em', 'C', 'D', 'F', 'Bm'], { avoidBarres: true })) expect(s.shape.barre, s.chord).toBeNull();
+    for (const s of easiestFingering(['G', 'Em', 'C', 'D', 'F'], { avoidBarres: true })) expect(s.shape.barre, s.chord).toBeNull();
+    // Bm has no barre-free shape in the library, so it keeps its barre instead of vanishing
+    expect(easiestFingering(['G', 'Bm'], { avoidBarres: true })[1].shape.barre).not.toBeNull();
     for (const s of easiestFingering(['C', 'G', 'Am', 'F'])) expect(s.shape.source).toBe('standard');
   });
   it('transitions are reported and the first has none', () => {

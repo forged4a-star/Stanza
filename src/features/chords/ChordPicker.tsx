@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { create } from 'zustand';
 import { prepareChords, previewChord } from '../../audio/engine';
+import { feelSwaps, MOODS, type Mood } from '../../core/music/feel';
 import { suggestNext } from '../../core/music/suggest';
 import { diatonicChords, keyPrefersFlats, noteName, parseChord, parseKey, QUALITY_BY_SUFFIX } from '../../core/music/theory';
 import { useSettings } from '../../store/settings';
@@ -75,6 +76,7 @@ export function ChordPicker() {
   const [bass, setBass] = useState<number | null>(null);
   const [slashMode, setSlashMode] = useState(false);
   const [shape, setShape] = useState(0);
+  const [mood, setMood] = useState<Mood | null>(null);
   const key = parseKey(doc?.song.key);
   const flats = key ? keyPrefersFlats(key) : useSettings.getState().preferFlats;
   const existing = target ? currentChord(target) : null;
@@ -87,6 +89,7 @@ export function ChordPicker() {
     setBass(c ? c.bass : null);
     setSlashMode(false);
     setShape(0);
+    setMood(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target]);
 
@@ -184,6 +187,31 @@ export function ChordPicker() {
             </Row>
           </>
         )}
+        {name && (
+          <>
+            <SectionTitle>Change the feel</SectionTitle>
+            <Row style={{ flexWrap: 'wrap' }}>
+              {MOODS.map((m) => (
+                <Chip key={m.id} label={m.label} selected={mood === m.id} onPress={() => setMood(mood === m.id ? null : m.id)} testID={`mood-${m.id}`} />
+              ))}
+            </Row>
+            {mood && (
+              <View style={{ marginTop: space.sm, gap: 6 }} testID="feel-swaps">
+                {feelSwaps(name, mood).length === 0 ? (
+                  <Text style={{ color: t.textDim, fontSize: font.small }}>No {MOODS.find((m) => m.id === mood)!.label.toLowerCase()} version of {name}. Try another mood.</Text>
+                ) : (
+                  feelSwaps(name, mood).map((sw) => (
+                    <Pressable key={sw.chord} onPress={() => choose(sw.chord)} style={[styles.swap, { backgroundColor: t.surface2 }]} accessibilityRole="button" accessibilityLabel={`${sw.chord}: ${sw.why}`} testID={`swap-${sw.chord}`}>
+                      <Text style={{ color: t.text, fontWeight: '700', fontSize: font.body + 1, minWidth: 64 }}>{sw.chord}</Text>
+                      <Text style={{ color: t.textDim, flex: 1, fontSize: font.small + 1 }}>{sw.why}</Text>
+                      <Icon name="play" size={16} color={t.accent} />
+                    </Pressable>
+                  ))
+                )}
+              </View>
+            )}
+          </>
+        )}
         <SectionTitle>{key ? `In ${doc?.song.key}` : 'Common chords'}</SectionTitle>
         <Row style={{ flexWrap: 'wrap' }}>
           {inKey.map((c) => (
@@ -232,5 +260,6 @@ const styles = StyleSheet.create({
   nameBox: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 48 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   cell: { width: '15%', minWidth: 48, height: 44, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
+  swap: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.md, minHeight: 48, borderRadius: radius.md },
   idea: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: 4, alignItems: 'center', minWidth: 56 },
 });

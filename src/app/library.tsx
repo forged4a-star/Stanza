@@ -10,7 +10,9 @@ import { importProject } from '../features/export/exportActions';
 import { IdeaCard } from '../features/ideas/IdeaCard';
 import { ImportSheet } from '../features/import/ImportSheet';
 import { deleteAudio } from '../audio/storage';
+import { songProgress } from '../core/song/progress';
 import { askText, choose, confirm, toast } from '../ui/Dialogs';
+import { ProgressRing } from '../ui/ProgressRing';
 import { Chip, Empty, Icon, IconButton, Row } from '../ui/kit';
 import { font, radius, space, TAP, useTheme } from '../ui/theme';
 
@@ -192,6 +194,7 @@ export default function Library() {
               {s.match ?? (s.preview || 'Empty')}
             </Text>
             <Row style={{ marginTop: 6 }}>
+              <ProgressRing {...(({ done, total }) => ({ done, total }))(songProgress({ title: s.title, ...s.progress }))} size={24} />
               <Text style={[styles.badge, { color: t.textDim, borderColor: t.border }]}>{s.status}</Text>
               {s.tags.slice(0, 3).map((x) => (
                 <Text key={x} style={{ color: t.textFaint, fontSize: font.small }}>

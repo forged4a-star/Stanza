@@ -21,6 +21,7 @@ import { applyOp, type LinePayload, type Op, type SectionPayload } from '../core
 import { getDb } from '../db/client';
 import type { Db } from '../db/driver';
 import * as repo from '../db/repo';
+import { useWriting } from './writing';
 import { SaveQueue, type SaveState } from '../db/saveQueue';
 
 let queue: SaveQueue | null = null;
@@ -146,6 +147,7 @@ export const useSong = create<SongStore>((set, get) => {
   const songId = () => get().doc!.song.id;
   const push = (op: (d: import('../db/driver').SqlDriver) => Promise<void>, key: string | null = null) => {
     const id = get().doc?.song.id ?? null;
+    useWriting.getState().edit();
     void ensureQueue().then((q) => q.push(op, key, id));
   };
   /** Immutable update of one section (and its lines). */
@@ -249,6 +251,7 @@ export const useSong = create<SongStore>((set, get) => {
       if (!doc) return;
       const at = findLine(doc, lineId);
       if (!at || at.line.locked) return;
+      if (!at.line.text.trim()) useWriting.getState().written(text.split('\n').filter((p) => p.trim()).length);
       if (!text.includes('\n')) {
         patchLine(lineId, (l) => ({ ...l, text }));
         push((d) => repo.updateLine(d, lineId, { text }), 'line:' + lineId);
@@ -287,6 +290,8 @@ export const useSong = create<SongStore>((set, get) => {
       const joined = newMid.join('\n');
       newMid.forEach((t, i) => {
         const o = oldMid[i];
+        // a line that had no words now has some
+        if (t.trim() && !(o && o.text.trim())) useWriting.getState().written();
         if (o) {
           lines.push({ ...o, text: t });
           writes.push(() => {

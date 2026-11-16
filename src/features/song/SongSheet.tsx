@@ -7,6 +7,8 @@ import { parseKey } from '../../core/music/theory';
 import { getDb } from '../../db/client';
 import * as repo from '../../db/repo';
 import { flushSaves, useSong } from '../../store/song';
+import { progressFromDoc } from '../../core/song/progress';
+import { ProgressRing } from '../../ui/ProgressRing';
 import { useCardBreaks } from '../cards/CardSheet';
 import { useSettings } from '../../store/settings';
 import { BottomSheet } from '../../ui/BottomSheet';
@@ -17,7 +19,7 @@ import { exportSong, type ExportKind } from '../export/exportActions';
 import { Share, Platform } from 'react-native';
 import { roomFor, shareSong, stopSharing, useCollab } from '../../collab/collab';
 
-export type SongSheetAction = 'versions' | 'takes' | 'arrange' | 'sound' | 'compare' | 'shape' | 'web' | 'cards' | 'import';
+export type SongSheetAction = 'versions' | 'takes' | 'arrange' | 'sound' | 'compare' | 'shape' | 'web' | 'cards' | 'image' | 'import';
 
 export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onClose: () => void; onOpen: (a: SongSheetAction) => void }) {
   const t = useTheme();
@@ -25,6 +27,8 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
   const st = useSong.getState();
   const settings = useSettings();
   const card = useCardBreaks();
+  const takeCount = useSong((x) => x.recordings.length);
+  const progress = doc ? progressFromDoc(doc, takeCount) : null;
   const [folders, setFolders] = useState<Folder[]>([]);
   const [tab, setTab] = useState<'song' | 'view' | 'export'>('song');
   const [bpmText, setBpmText] = useState('');
@@ -73,6 +77,22 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
       <ScrollView contentContainerStyle={{ paddingBottom: space.xxl }} keyboardShouldPersistTaps="handled">
         {tab === 'song' && (
           <View style={{ paddingHorizontal: space.lg }}>
+            {progress && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.sm, padding: space.md, borderRadius: 12, backgroundColor: t.surface2 }} testID="progress">
+                <ProgressRing done={progress.done} total={progress.total} size={56} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={{ color: t.text, fontWeight: '700', fontSize: font.body }} testID="progress-title">
+                    {progress.next ? `${progress.done} of ${progress.total} parts done` : 'All five parts are in'}
+                  </Text>
+                  <Text style={{ color: t.textDim, fontSize: font.small }} testID="progress-next">
+                    {progress.next ? `Next: ${progress.next.hint}` : 'Nothing missing. Keep polishing.'}
+                  </Text>
+                  <Text style={{ color: t.textFaint, fontSize: font.small }} testID="progress-items">
+                    {progress.items.map((i) => `${i.done ? '✓' : '○'} ${i.label}`).join('   ')}
+                  </Text>
+                </View>
+              </View>
+            )}
             <SectionTitle>Status</SectionTitle>
             <Row>
               {SONG_STATUSES.map((x) => (
@@ -228,6 +248,7 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
             <SectionTitle>Lyrics</SectionTitle>
             <Button title="Text file (.txt)" icon="document-text-outline" onPress={() => run('txt')} busy={busy === 'txt'} testID="export-txt" />
             <Button title="PDF lyric sheet" icon="document-outline" onPress={() => run('pdf-lyrics')} busy={busy === 'pdf-lyrics'} />
+            <Button title="Lyric card (picture)" icon="image-outline" onPress={() => onOpen('image')} testID="open-card-image" />
             <SectionTitle>Chords and melody</SectionTitle>
             <Row>
               <Text style={{ color: t.textDim, flex: 1 }}>Transpose {transpose > 0 ? `+${transpose}` : transpose}</Text>

@@ -267,6 +267,8 @@ export interface SongListItem {
   /** for search results: the matching line */
   match: string | null;
   deletedAt: number | null;
+  /** how finished it is: counts for the progress ring */
+  progress: { lines: number; chordSections: number; melodySections: number; takes: number };
 }
 
 export interface SongQuery {
@@ -309,7 +311,11 @@ export async function listSongs(d: SqlDriver, q: SongQuery = {}): Promise<SongLi
   const rows = await d.all<Row>(
     `SELECT id, title, status, pinned, folder_id, updated_at, opened_at, deleted_at, search_text,
        (SELECT group_concat(tag, ',') FROM song_tags WHERE song_id = songs.id) AS tags,
-       (SELECT l.text FROM lines l JOIN sections s ON s.id = l.section_id WHERE s.song_id = songs.id AND trim(l.text) != '' ORDER BY s.sort, l.sort LIMIT 1) AS preview
+       (SELECT l.text FROM lines l JOIN sections s ON s.id = l.section_id WHERE s.song_id = songs.id AND trim(l.text) != '' ORDER BY s.sort, l.sort LIMIT 1) AS preview,
+       (SELECT COUNT(*) FROM lines l JOIN sections s ON s.id = l.section_id WHERE s.song_id = songs.id AND trim(l.text) != '') AS n_lines,
+       (SELECT COUNT(*) FROM sections s WHERE s.song_id = songs.id AND (s.bars != '[]' OR EXISTS (SELECT 1 FROM lines l WHERE l.section_id = s.id AND l.chords != '[]'))) AS n_chords,
+       (SELECT COUNT(*) FROM sections s WHERE s.song_id = songs.id AND s.melody != '[]') AS n_melody,
+       (SELECT COUNT(*) FROM recordings r WHERE r.song_id = songs.id) AS n_takes
      FROM songs WHERE ${where.join(' AND ')} ORDER BY ${order}`,
     params
   );
@@ -331,6 +337,7 @@ export async function listSongs(d: SqlDriver, q: SongQuery = {}): Promise<SongLi
       tags: r.tags ? String(r.tags).split(',') : [],
       preview: r.preview ?? '',
       match,
+      progress: { lines: Number(r.n_lines ?? 0), chordSections: Number(r.n_chords ?? 0), melodySections: Number(r.n_melody ?? 0), takes: Number(r.n_takes ?? 0) },
     };
   });
 }

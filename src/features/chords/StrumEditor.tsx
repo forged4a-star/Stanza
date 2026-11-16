@@ -3,7 +3,7 @@
  * (rest, down, soft down, up, soft up, muted chuck), hear it loop as you edit.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import {
   changeResolution,
   customPatternId,
@@ -17,7 +17,8 @@ import {
 import { useSettings } from '../../store/settings';
 import { useSong } from '../../store/song';
 import { BottomSheet } from '../../ui/BottomSheet';
-import { confirm, toast } from '../../ui/Dialogs';
+import { askText, confirm, toast } from '../../ui/Dialogs';
+import { encodeStrum } from '../../core/audio/strumCode';
 import { RhythmInput } from './RhythmInput';
 import { Button, Chip, Field, Icon, Row, SectionTitle, Segmented } from '../../ui/kit';
 import { font, radius, space, useTheme } from '../../ui/theme';
@@ -100,6 +101,19 @@ export function StrumEditor({ initial, existing, onClose }: { initial: CustomStr
     if (usePlayer.getState().scope === 'strum-preview') stopPlayer();
     toast(`Saved "${name}" and selected it`);
     onClose();
+  };
+
+  /** send the code as a message (phone), or copy it (browser) */
+  const shareCode = async () => {
+    const code = encodeStrum({ ...draft, name: draft.name.trim() || 'My strum' });
+    try {
+      if (Platform.OS === 'web') {
+        await navigator.clipboard.writeText(code);
+        toast('Code copied. Paste it in a message.');
+      } else await Share.share({ message: code });
+    } catch {
+      await askText('Copy this code', code, { ok: 'Done' });
+    }
   };
 
   const remove = async () => {
@@ -218,6 +232,9 @@ export function StrumEditor({ initial, existing, onClose }: { initial: CustomStr
           ))}
         </Row>
 
+        <Row style={{ marginTop: space.lg }}>
+          <Button compact icon="share-outline" title="Share as a code" onPress={() => void shareCode()} disabled={!hits} testID="strum-share" />
+        </Row>
         <Row style={{ marginTop: space.xl }}>
           {existing && <Button title="Delete" kind="danger" icon="trash-outline" onPress={remove} testID="strum-delete" />}
           <Button title={existing ? 'Save changes' : 'Save strum'} kind="primary" icon="checkmark" onPress={save} style={{ flex: 1 }} testID="strum-save" />

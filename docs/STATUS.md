@@ -435,3 +435,38 @@ Found by reading the native engine's source, not just testing in a browser:
 - **Not built: a daily notification.** It needs a native notifications library and
   a new APK, and it cannot be tested here, so the idea only appears in the app.
 - Checks: 178 unit tests and all 12 browser suites pass. Lint cannot run here.
+
+## 1.1 batch 3: strum codes, chord feel, capo help, time travel, finish ring, lyric card, writing stats
+
+- **Strum codes.** A custom strum becomes one line of text
+  (`stanza-strum/1/e/n/D-D-----/Name~x`). Strum editor → "Share as a code" (the
+  phone's share sheet; copies in a browser). Chords → Play → "Import code" pastes
+  one back, even inside a longer message. A checksum rejects a damaged code with
+  a reason. (Found and fixed along the way: names with spaces broke the format.)
+- **Chord swap by feel** (chord picker → Change the feel). Warmer, tenser, more
+  open, brighter, darker: up to four swaps each, same root and slash bass, with a
+  plain reason ("a soft major 7th"). Tap one to hear it, then use it.
+- **Capo help** (Chords → Shapes). Ranks capo 0-7 by how easy the resulting shapes
+  are (open and common chords, barres, how far the hand travels) and shows the top
+  three with "Use capo N". The sound is unchanged. Bm G D A → capo 7 (Em C G D).
+  (Found and fixed: the open-position Bm was not marked as a barre in the shape
+  library.)
+- **Version time travel** (song menu → Versions → Time travel). A slider and
+  earlier/later buttons through up to the last 40 versions, what changed at each
+  step, and lines that were there but are gone now with "Pull back" (adds the line
+  back to its section) and "Restore this version".
+- **Finish ring.** Five parts: words (8+ lines), chords, melody, a take, a title.
+  Shown as a ring on every song in the list, and in the song menu with what to do
+  next. A guide to what is missing, not a grade.
+- **Lyric card.** Song menu → Export → Lyric card: pick a section, one of four
+  looks, square or tall, and share a PNG. Browser: tested as a real PNG download.
+  **Phone: the PNG comes from react-native-svg's toDataURL and has not been run on
+  a device.** If sharing the picture fails on the phone, that is the place to look.
+- **Writing stats** (Settings → Your writing this week). Minutes writing (time
+  between edits, capped at 2 min, so an idle app adds nothing), lines written,
+  lines sent to the scrapyard, a 7-day chart and a streak. Stored on the device;
+  saved a few seconds after the last edit and when the app leaves the screen.
+- **Not built: walk-and-write** (hands-free recording that marks keepers while you
+  walk). It needs background audio recording, which has to be set up in the native
+  build and cannot be tested here. Not started rather than half done.
+- Checks: 228 unit tests and all 13 browser suites pass. Lint cannot run here.
