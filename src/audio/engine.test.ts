@@ -5,6 +5,9 @@ const state = vi.hoisted(() => ({
   time: 0,
   sources: [] as { start: number; stop: number | null; buffer: unknown; gain: { ramps: number[] } }[],
   buffersMade: 0,
+  gainsMade: 0,
+  sourcesMade: 0,
+  disconnected: 0,
 }));
 
 vi.mock('react-native-audio-api', () => {
@@ -16,13 +19,22 @@ vi.mock('react-native-audio-api', () => {
   }
   class GainNode {
     gain = new Param();
+    constructor() {
+      state.gainsMade++;
+    }
     connect() {}
   }
   class BufferSource {
     buffer: unknown = null;
     onended: (() => void) | null = null;
     rec = { start: -1, stop: null as number | null, buffer: null as unknown, gain: { ramps: [] as number[] } };
+    constructor() {
+      state.sourcesMade++;
+    }
     connect() {}
+    disconnect() {
+      state.disconnected++;
+    }
     start(t: number) {
       this.rec.start = t;
       this.rec.buffer = this.buffer;
@@ -52,12 +64,13 @@ vi.mock('react-native-audio-api', () => {
   return { AudioContext };
 });
 
-import { MAX_VOICES, playNote, prepare, startTransport, stopTransport } from './engine';
+import { engineStats, MAX_VOICES, playNote, prepare, startTransport, stopTransport } from './engine';
 
 beforeEach(() => {
   stopTransport();
   state.sources = [];
   state.time = 0;
+  state.disconnected = 0;
 });
 
 describe('audio engine timing and cost', () => {
@@ -92,5 +105,29 @@ describe('audio engine timing and cost', () => {
     stopTransport();
     expect(state.buffersMade).toBe(afterPrep);
     expect(afterPrep - before).toBeLessThanOrEqual(3);
+  });
+
+  it('does not grow the audio graph as you keep playing', () => {
+    // simulate a long session: play a chord progression over and over, with the clock moving on
+    const bars = [{ chords: ['C'] }, { chords: ['Am', 'F'] }, { chords: ['G'] }];
+    startTransport(bars, { bpm: 120, timeSig: [4, 4], pattern: 'strum-folk', instrument: 'piano', metronome: true, loop: false });
+    stopTransport();
+    state.time += 10;
+    const afterFirst = { gains: state.gainsMade, slots: engineStats().slots };
+    for (let round = 0; round < 40; round++) {
+      state.time += 10;
+      startTransport(bars, { bpm: 120, timeSig: [4, 4], pattern: 'strum-folk', instrument: 'piano', metronome: true, loop: false });
+      stopTransport();
+    }
+    state.time += 20;
+    playNote(60, 0.2, 'piano'); // any play prunes what has finished
+    // gain nodes are pooled: no new ones after the first rounds, and the pool is bounded
+    expect(state.gainsMade).toBeLessThanOrEqual(afterFirst.gains + 4);
+    expect(engineStats().slots).toBeLessThanOrEqual(2 * MAX_VOICES);
+    // finished sources were released, not left wired to the output
+    expect(state.disconnected).toBeGreaterThan(100);
+    const live = engineStats();
+    expect(live.voices).toBeLessThan(MAX_VOICES);
+    expect(live.clicks).toBeLessThan(10);
   });
 });

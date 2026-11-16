@@ -288,3 +288,16 @@ that only exists natively is marked *not run on a device*.
 - **BPM**: type it in the tempo field (30–300) next to ±5 and Tap tempo.
 - Verified with a fake audio clock in unit tests and in the browser. Not yet
   heard on a phone.
+
+## Round 4 — audio degrading with every play; faster builds
+
+- **Audio leak fixed**: the engine never disconnected anything. Every note left
+  a gain node wired to the output and every metronome tick left a source, so the
+  native audio graph grew with every play. Now: a fixed pool of reusable gain
+  nodes, sources disconnected when they finish (by audio time, not relying on
+  events), one shared output for ticks, chords and melody queued together in
+  time order, and a note is skipped rather than double-booking a slot. A test
+  plays 40 rounds and checks no nodes are added. *Not yet heard on a phone.*
+- **Builds**: arm64-only by default (manual run can build all chips), Gradle and
+  ccache caching, newer pushes cancel running builds, docs/tests/server changes
+  don't trigger a build.

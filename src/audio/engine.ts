@@ -11,7 +11,7 @@
  * rendered once at a reduced rate and reused; voices are capped and the
  * oldest is faded when a new note would exceed the cap.
  */
-import { AudioContext, type AudioBuffer, type GainNode } from 'react-native-audio-api';
+import { AudioContext, type AudioBuffer, type AudioBufferSourceNode, type GainNode } from 'react-native-audio-api';
 import { buildSchedule, chordNotes, type PatternId, type Schedule } from '../core/audio/patterns';
 import { renderClick, renderNote, type Instrument } from '../core/audio/synth';
 import type { ChordBar } from '../core/model';
@@ -36,11 +36,28 @@ interface Voice {
   pitch: number;
   start: number;
   end: number;
-  stop: (t?: number) => void;
+  src: AudioBufferSourceNode;
+  slot: Slot;
   fadeAt: (t: number) => void;
 }
-/** every voice that is sounding or queued to sound (pruned as they finish) */
+/**
+ * A reusable gain node. Slots are created once and stay wired to the master
+ * for the life of the app, so the audio graph never grows with playing time
+ * (a fresh node per note would pile up on the native engine).
+ */
+interface Slot {
+  gain: GainNode;
+  /** audio time after which nothing scheduled on this slot is still sounding */
+  busyUntil: number;
+}
+const slots: Slot[] = [];
+/** slots = voices, plus headroom for notes fading while their replacements start */
+const MAX_SLOTS = MAX_VOICES * 2;
+/** every voice that is sounding or queued to sound (pruned by time) */
 let voices: Voice[] = [];
+/** metronome ticks: one shared output node, sources released as they finish */
+let clickOut: GainNode | null = null;
+let clickSources: { src: AudioBufferSourceNode; end: number }[] = [];
 
 function context(): AudioContext {
   if (!ctx) {
@@ -50,6 +67,9 @@ function context(): AudioContext {
     master = ctx.createGain();
     master.gain.value = 0.25;
     master.connect(ctx.destination);
+    clickOut = ctx.createGain();
+    clickOut.gain.value = 1;
+    clickOut.connect(master);
   }
   if (ctx.state === 'suspended') void ctx.resume();
   return ctx;
@@ -99,10 +119,55 @@ export function prepare(inst: Instrument, midis: number[]): Promise<void> {
   });
 }
 
-/** Ring a note: returns the voice. `end` is when it has finished sounding. */
-function play(inst: Instrument, midi: number, when: number, vel: number, dur?: number): Voice {
+const safe = (fn: () => void) => {
+  try {
+    fn();
+  } catch {
+    // node already finished or released
+  }
+};
+
+/** Release everything that has finished sounding, by audio time (no events needed). */
+function reap(t: number) {
+  if (voices.some((v) => v.end < t - 0.1)) {
+    const keep: Voice[] = [];
+    for (const v of voices) {
+      if (v.end < t - 0.1) safe(() => v.src.disconnect());
+      else keep.push(v);
+    }
+    voices = keep;
+  }
+  if (clickSources.length && clickSources.some((k) => k.end < t - 0.1)) {
+    clickSources = clickSources.filter((k) => {
+      if (k.end >= t - 0.1) return true;
+      safe(() => k.src.disconnect());
+      return false;
+    });
+  }
+}
+
+function slotFor(c: AudioContext, start: number): Slot | null {
+  let free: Slot | undefined;
+  for (const s of slots) if (s.busyUntil <= start && (!free || s.busyUntil < free.busyUntil)) free = s;
+  if (free) return free;
+  if (slots.length < MAX_SLOTS) {
+    const g = c.createGain();
+    g.gain.value = 0;
+    g.connect(master!);
+    const s: Slot = { gain: g, busyUntil: 0 };
+    slots.push(s);
+    return s;
+  }
+  // Every slot is booked through this moment: skip the note rather than
+  // double-book a slot (which would cancel another note's volume automation).
+  return null;
+}
+
+/** Ring a note on a pooled slot. `end` is when it has finished sounding. */
+function play(inst: Instrument, midi: number, when: number, vel: number, dur?: number): Voice | null {
   const c = context();
   const start = Math.max(when, c.currentTime);
+  reap(c.currentTime);
   const length = dur ?? NOTE_SECONDS;
   const end = start + length;
 
@@ -116,37 +181,46 @@ function play(inst: Instrument, midi: number, when: number, vel: number, dur?: n
     for (let k = 0; k < sounding.length - MAX_VOICES + 1; k++) sounding[k].fadeAt(start);
   }
 
-  const src = c.createBufferSource();
-  src.buffer = noteBuffer(inst, midi);
-  const g = c.createGain();
+  const slot = slotFor(c, start);
+  if (!slot) return null;
+  const g = slot.gain;
   g.gain.setValueAtTime(vel, start);
-  src.connect(g);
-  g.connect(master!);
-  src.start(start);
-  const fadeAt = (t: number) => {
-    try {
-      const at = Math.max(t, c.currentTime);
-      g.gain.cancelScheduledValues(at);
-      g.gain.setValueAtTime(vel, at);
-      g.gain.linearRampToValueAtTime(0, at + 0.03);
-      src.stop(at + 0.04);
-      voice.end = Math.min(voice.end, at + 0.04);
-    } catch {
-      // already finished
-    }
-  };
   // a fixed-length note fades out on time; the buffer itself is longer
   g.gain.setValueAtTime(vel, end - 0.04);
   g.gain.linearRampToValueAtTime(0, end);
+  slot.busyUntil = end + 0.05;
+
+  const src = c.createBufferSource();
+  src.buffer = noteBuffer(inst, midi);
+  src.connect(g);
+  src.start(start);
   src.stop(end + 0.02);
 
-  const voice: Voice = { pitch: midi, start, end, stop: (t) => src.stop(t ?? c.currentTime), fadeAt };
+  const voice: Voice = {
+    pitch: midi,
+    start,
+    end,
+    src,
+    slot,
+    fadeAt: (t: number) => {
+      const at = Math.max(t, c.currentTime);
+      if (at >= voice.end) return;
+      safe(() => {
+        g.gain.cancelScheduledValues(at);
+        g.gain.setValueAtTime(vel, at);
+        g.gain.linearRampToValueAtTime(0, at + 0.03);
+        src.stop(at + 0.04);
+      });
+      voice.end = at + 0.04;
+      slot.busyUntil = Math.min(slot.busyUntil, at + 0.09);
+    },
+  };
   voices.push(voice);
+  // belt and braces: release on the ended event too, if the engine sends it
   src.onended = () => {
+    safe(() => src.disconnect());
     voices = voices.filter((v) => v !== voice);
   };
-  // drop finished voices now and then so the list stays short
-  if (voices.length > 4 * MAX_VOICES) voices = voices.filter((v) => v.end > c.currentTime - 1);
   return voice;
 }
 
@@ -172,7 +246,12 @@ export function stopAll() {
   const c = ctx;
   if (!c) return;
   for (const v of voices) v.fadeAt(c.currentTime);
-  voices = [];
+  for (const k of clickSources) safe(() => k.src.stop(c.currentTime));
+}
+
+/** Number of live audio nodes this engine holds (for tests and diagnostics). */
+export function engineStats() {
+  return { slots: slots.length, voices: voices.length, clicks: clickSources.length, buffers: buffers.size };
 }
 
 // ------------------------------------------------------------------ transport
@@ -232,14 +311,21 @@ export function startTransport(bars: ChordBar[], opts: TransportOptions): Schedu
 
   const queueLoop = (n: number) => {
     const base = t0 + n * length;
-    for (const e of schedule.notes) play(opts.instrument, e.midi, base + e.time, e.vel, e.dur);
-    for (const e of extra) play('piano', e.midi, base + e.time, 0.9, e.dur);
+    // chords and melody together, in time order, so each note finds the earliest-free slot
+    const events: { time: number; inst: Instrument; midi: number; vel: number; dur: number }[] = [];
+    for (const e of schedule.notes) events.push({ time: e.time, inst: opts.instrument, midi: e.midi, vel: e.vel, dur: e.dur });
+    for (const e of extra) events.push({ time: e.time, inst: 'piano', midi: e.midi, vel: 0.9, dur: e.dur });
+    events.sort((x, y) => x.time - y.time);
+    for (const e of events) play(e.inst, e.midi, base + e.time, e.vel, e.dur);
     if (opts.metronome) {
       for (const k of schedule.clicks) {
+        const at = Math.max(base + k.time, c.currentTime);
         const src = c.createBufferSource();
         src.buffer = clickBuffer(k.accent);
-        src.connect(master!);
-        src.start(Math.max(base + k.time, c.currentTime));
+        src.connect(clickOut!);
+        src.start(at);
+        clickSources.push({ src, end: at + 0.1 });
+        src.onended = () => safe(() => src.disconnect());
       }
     }
     // the highlight is display only: it may run late, but never shifts the sound
@@ -254,6 +340,7 @@ export function startTransport(bars: ChordBar[], opts: TransportOptions): Schedu
   // queue two loops now, then keep at least LOOKAHEAD_LOOPS queued ahead of the clock
   const topUp = () => {
     if (r.stopped) return;
+    reap(c.currentTime);
     while (queued < loops && t0 + queued * length < c.currentTime + LOOKAHEAD_LOOPS * length) queueLoop(queued++);
   };
   topUp();

@@ -3,7 +3,24 @@ name: Build Android APK
 on:
   push:
     branches: [main]
+    # docs, tests and the optional server don't change the app
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'e2e/**'
+      - 'server/**'
+      - 'targets/**'
   workflow_dispatch:
+    inputs:
+      all_architectures:
+        description: 'Build for every chip (emulators, old 32-bit phones). Slower, bigger.'
+        type: boolean
+        default: false
+
+# a newer push replaces a build that is still running
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -12,6 +29,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    env:
+      # compile the native C++ through ccache (CMake reads these)
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+      CCACHE_COMPRESS: '1'
+      CCACHE_MAXSIZE: 1G
     steps:
       - uses: actions/checkout@v4
 
@@ -25,17 +48,33 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      # caches Gradle's downloads and build outputs between runs
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
+      # caches compiled native code between runs
+      - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: android-${{ runner.os }}
+          max-size: 1G
+
       - name: Install JS dependencies
         run: npm ci --no-audit --no-fund
 
       - name: Generate the Android project
         run: npx expo prebuild --platform android --no-install --clean
 
+      # Only the 64-bit ARM chip in modern phones: about a quarter of the native
+      # compiling, and a much smaller APK. (Emulators and very old 32-bit phones
+      # need the other chips; use the manual run with all architectures for those.)
       - name: Build the release APK
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+          ARCH="arm64-v8a"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.all_architectures }}" = "true" ]; then ARCH="armeabi-v7a,arm64-v8a,x86,x86_64"; fi
+          ./gradlew assembleRelease --parallel -PreactNativeArchitectures="$ARCH" -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseParallelGC"
 
       - name: Rename APK
         run: cp android/app/build/outputs/apk/release/app-release.apk stanza.apk
