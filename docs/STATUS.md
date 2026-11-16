@@ -201,3 +201,50 @@ that only exists natively is marked *not run on a device*.
 - Links are by position (line + syllable number). Inserting a word early in a
   line shifts later links by one; "link in order" fixes a section in one tap.
 - One melody line per section (monophonic), as is natural for a vocal line.
+
+## Phase 5 — feeling map, contrast meter, sync, collaboration
+
+### Works (tested)
+- **Feeling map**: name each section's feeling in your own words and set its
+  intensity; drawn as an arc across the song (Song sheet → Song shape, or the
+  section menu). The feeling also shows under the section name.
+- **Contrast meter**: compares any two sections (default verse vs chorus) on
+  melodic range, register, line length, chord rate and rhythm density, with a
+  plain-language verdict.
+- **Cliché and repetition flags** (off by default): ~60 well-worn phrases,
+  tired rhyme pairs (fire/desire …), and content words leaned on 3+ times
+  outside the chorus; dotted underline in the lyric and a list in Checks.
+- **AI rules**: nothing in the app writes or completes lyrics. "Questions"
+  (Song shape) asks about your own words (abstract words, unclear pronouns,
+  missing senses, the section's job, the feeling you named). The "Let AI write
+  lyrics" setting exists, is off, and has no effect because no lyric model
+  ships.
+- **Backup and sync** (optional): a small server (`server/`, Node + SQLite).
+  Songs, trash state and audio takes sync between devices; when both sides
+  changed a song the newer wins and the other version is saved as a snapshot.
+  Manual "Sync now" and automatic sync (start, every 5 min, on background).
+  Verified with two browser "devices" and in unit tests against the server.
+- **Co-writing by link** (built last): share a song → link; anyone with it
+  joins, sees who's here, edits live (lines, sections, chords, melody, title),
+  and leaves comments on lines (resolve/reopen). Edits are id-based ops
+  relayed by the server in one order, with a document hash so a client that
+  drifts re-fetches. Offline, edits stay local and the song re-joins later.
+  Verified with two browser contexts typing into the same song.
+
+### Limitations
+- Co-writing needs the server to be reachable (it's the one networked
+  feature); the rest of the app is unaffected when offline.
+- Concurrent edits to the *same line* are last-writer-wins per line; there is
+  no character-level merge. Restoring an old version while a song is shared is
+  not sent to co-writers.
+- Server auth is a single owner token; share links are capability links.
+
+## Overall: unable to build or verify here
+- **No native build was run.** The Android SDK cannot be downloaded in this
+  environment, so nothing has run on an Android device. Native-only paths —
+  recording on device, react-native-audio-api audio/mic, on-device
+  transcription, the home/lock-screen widget, app-icon quick action — are
+  written and their native projects generate (`expo prebuild`) but are
+  untested. Everything else was exercised on web.
+- iOS: deliberately set aside for now (WidgetKit extension code is in
+  `targets/` but not built).

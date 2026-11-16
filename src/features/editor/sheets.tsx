@@ -102,6 +102,7 @@ export async function sectionMenu(sectionId: string, onCompare: (a: number, b: n
   const choice = await choose(names[idx], [
     { label: sec.bars.length ? 'Add a bar of chords' : 'Add chords', value: 'chords' },
     { label: 'Melody (piano roll)', value: 'melody' },
+    { label: sec.feeling ? `Feeling: ${sec.feeling}` : 'Name the feeling', value: 'feeling' },
     { label: 'Change type', value: 'kind' },
     { label: 'Rename', value: 'rename' },
     { label: 'Duplicate', value: 'dup' },
@@ -118,6 +119,11 @@ export async function sectionMenu(sectionId: string, onCompare: (a: number, b: n
     case 'melody':
       openMelody(sectionId, true);
       break;
+    case 'feeling': {
+      const f = await askText('What does this part feel like?', sec.feeling, { message: 'In your own words. It appears on the feeling map.', placeholder: 'e.g. restless, the morning after' });
+      if (f !== null) st.updateSection(sectionId, { feeling: f.trim() });
+      break;
+    }
     case 'kind': {
       const k = await choose('Section type', SECTION_KINDS.map((x) => ({ label: SECTION_KIND_NAMES[x], value: x })));
       if (k) st.updateSection(sectionId, { kind: k as SectionKind });

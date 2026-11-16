@@ -51,3 +51,14 @@ export async function writeTemp(name: string, bytes: Uint8Array | string): Promi
   const blob = new Blob([bytes as BlobPart]);
   return URL.createObjectURL(blob);
 }
+
+export async function writeAudioNamed(name: string, bytes: Uint8Array): Promise<void> {
+  const db = await getDb();
+  const ext = name.split('.').pop() ?? 'webm';
+  await db.run(`INSERT OR REPLACE INTO blobs (name, mime, data) VALUES (?, ?, ?)`, [name, mimeFor(ext), bytes]);
+}
+
+export async function hasAudio(name: string): Promise<boolean> {
+  const db = await getDb();
+  return !!(await db.first(`SELECT name FROM blobs WHERE name = ?`, [name]));
+}

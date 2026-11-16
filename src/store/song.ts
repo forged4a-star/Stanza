@@ -17,12 +17,31 @@ import {
 } from '../core/model';
 import { newId } from '../core/util/id';
 import { keyName, keyPrefersFlats, parseKey, transposeChord } from '../core/music/theory';
+import { applyOp, type LinePayload, type Op, type SectionPayload } from '../core/collab/ops';
 import { getDb } from '../db/client';
 import type { Db } from '../db/driver';
 import * as repo from '../db/repo';
 import { SaveQueue, type SaveState } from '../db/saveQueue';
 
 let queue: SaveQueue | null = null;
+
+/** Co-writing hook: when a shared song is open, local edits are also sent as ops. */
+let emitter: ((op: Op) => void) | null = null;
+export function setCollabEmitter(fn: ((op: Op) => void) | null) {
+  emitter = fn;
+}
+const emit = (op: Op) => emitter?.(op);
+const linePayload = (l: Line): LinePayload => ({ id: l.id, text: l.text, locked: l.locked, alts: l.alts, chords: l.chords });
+const sectionPayload = (s: SectionWithLines): SectionPayload => ({
+  id: s.id,
+  kind: s.kind,
+  label: s.label,
+  feeling: s.feeling,
+  intensity: s.intensity,
+  bars: s.bars,
+  melody: s.melody,
+  lines: s.lines.map(linePayload),
+});
 let dbRef: Db | null = null;
 
 async function ensureQueue(): Promise<SaveQueue> {
@@ -98,6 +117,8 @@ interface SongStore {
   setBars: (sectionId: string, bars: ChordBar[]) => void;
   setMelody: (sectionId: string, melody: Note[]) => void;
 
+  /** apply an edit made by a co-writer (and save it) */
+  applyRemoteOp: (op: Op) => void;
   /** move every chord (bars, lyric chords, key) by semitones */
   transposeSong: (semitones: number) => void;
   requestFocus: (lineId: string, caret?: number) => void;
@@ -195,6 +216,7 @@ export const useSong = create<SongStore>((set, get) => {
       set({ doc: { ...doc, song: { ...doc.song, title } } });
       const id = doc.song.id;
       push((d) => repo.updateSong(d, id, { title }), 'title:' + id);
+      emit({ t: 'songMeta', patch: { title } });
     },
 
     setMeta: (patch) => {
@@ -203,6 +225,9 @@ export const useSong = create<SongStore>((set, get) => {
       set({ doc: { ...doc, song: { ...doc.song, ...patch } } });
       const id = doc.song.id;
       push((d) => repo.updateSong(d, id, patch));
+      const shared: Record<string, unknown> = {};
+      for (const k of ['title', 'key', 'bpm', 'timeSig', 'capo'] as const) if (patch[k] !== undefined) shared[k] = patch[k];
+      if (Object.keys(shared).length) emit({ t: 'songMeta', patch: shared });
     },
 
     setTags: (tags) => {
@@ -221,6 +246,7 @@ export const useSong = create<SongStore>((set, get) => {
       if (!text.includes('\n')) {
         patchLine(lineId, (l) => ({ ...l, text }));
         push((d) => repo.updateLine(d, lineId, { text }), 'line:' + lineId);
+        emit({ t: 'lineText', lineId, text });
         return;
       }
       // Enter or a multi-line paste: split into several lines
@@ -228,6 +254,7 @@ export const useSong = create<SongStore>((set, get) => {
       const first = parts.shift()!;
       patchLine(lineId, (l) => ({ ...l, text: first }));
       push((d) => repo.updateLine(d, lineId, { text: first }), 'line:' + lineId);
+      emit({ t: 'lineText', lineId, text: first });
       let after = lineId;
       for (const p of parts) after = get().insertLineAfter(after, p, false)!;
       get().requestFocus(after, parts.length === 1 ? 0 : -1);
@@ -245,6 +272,7 @@ export const useSong = create<SongStore>((set, get) => {
         return { ...s, lines: reindex(lines) };
       });
       push((d) => repo.insertLine(d, line));
+      emit({ t: 'insertLine', sectionId: at.section.id, afterLineId: lineId, line: linePayload(line) });
       if (focus) get().requestFocus(line.id, 0);
       return line.id;
     },
@@ -255,6 +283,7 @@ export const useSong = create<SongStore>((set, get) => {
       const line: Line = { id: newId(), sectionId, sort: sec.lines.length, text, locked: false, alts: [], chords: [] };
       patchSection(sectionId, (s) => ({ ...s, lines: [...s.lines, line] }));
       push((d) => repo.insertLine(d, line));
+      emit({ t: 'insertLine', sectionId, afterLineId: sec.lines[sec.lines.length - 1]?.id ?? null, line: linePayload(line) });
       get().requestFocus(line.id, -1);
       return line.id;
     },
@@ -271,6 +300,7 @@ export const useSong = create<SongStore>((set, get) => {
       }
       patchSection(at.section.id, (s) => ({ ...s, lines: reindex(s.lines.filter((l) => l.id !== lineId)) }));
       push((d) => repo.deleteLine(d, lineId));
+      emit({ t: 'deleteLine', lineId });
       if (focusPrev) {
         const prev = at.section.lines[at.l - 1] ?? at.section.lines[at.l + 1];
         if (prev) get().requestFocus(prev.id, -1);
@@ -291,6 +321,8 @@ export const useSong = create<SongStore>((set, get) => {
       // the words moved up, so nothing goes to the scrapyard
       patchSection(at.section.id, (s) => ({ ...s, lines: reindex(s.lines.filter((l) => l.id !== lineId)) }));
       push((d) => repo.deleteLine(d, lineId, false));
+      emit({ t: 'lineText', lineId: prev.id, text: joined });
+      emit({ t: 'deleteLine', lineId });
       get().requestFocus(prev.id, caret);
     },
 
@@ -298,6 +330,7 @@ export const useSong = create<SongStore>((set, get) => {
       let locked = false;
       patchLine(lineId, (l) => ((locked = !l.locked), { ...l, locked }));
       push((d) => repo.updateLine(d, lineId, { locked }));
+      emit({ t: 'lineMeta', lineId, patch: { locked } });
     },
 
     stashAlternate: (lineId) => {
@@ -307,6 +340,7 @@ export const useSong = create<SongStore>((set, get) => {
       const alts = [...at.line.alts, at.line.text];
       patchLine(lineId, (l) => ({ ...l, alts }));
       push((d) => repo.updateLine(d, lineId, { alts }), 'alts:' + lineId);
+      emit({ t: 'lineMeta', lineId, patch: { alts } });
     },
 
     cycleAlternate: (lineId, dir = 1) => {
@@ -318,6 +352,8 @@ export const useSong = create<SongStore>((set, get) => {
       const [text, ...alts] = next;
       patchLine(lineId, (l) => ({ ...l, text, alts }));
       push((d) => repo.updateLine(d, lineId, { text, alts }), 'alts:' + lineId);
+      emit({ t: 'lineText', lineId, text });
+      emit({ t: 'lineMeta', lineId, patch: { alts } });
     },
 
     pickAlternate: (lineId, index) => {
@@ -328,6 +364,8 @@ export const useSong = create<SongStore>((set, get) => {
       if (picked === undefined) return;
       patchLine(lineId, (l) => ({ ...l, text: picked, alts }));
       push((d) => repo.updateLine(d, lineId, { text: picked, alts }), 'alts:' + lineId);
+      emit({ t: 'lineText', lineId, text: picked });
+      emit({ t: 'lineMeta', lineId, patch: { alts } });
     },
 
     deleteAlternate: (lineId, index) => {
@@ -342,11 +380,13 @@ export const useSong = create<SongStore>((set, get) => {
         await repo.updateLine(d, lineId, { alts });
         if (gone) await repo.addScrap(d, id, gone, label);
       });
+      emit({ t: 'lineMeta', lineId, patch: { alts } });
     },
 
     setLineChords: (lineId, chords) => {
       patchLine(lineId, (l) => ({ ...l, chords }));
       push((d) => repo.updateLine(d, lineId, { chords }), 'chords:' + lineId);
+      emit({ t: 'lineMeta', lineId, patch: { chords } });
     },
 
     addSection: (kind, atIndex, lines = ['']) => {
@@ -371,6 +411,7 @@ export const useSong = create<SongStore>((set, get) => {
       set({ doc: { ...doc, sections: sections.map((s, i) => ({ ...s, sort: i })) } });
       const sid = doc.song.id;
       push((d) => repo.insertSection(d, sid, index, { id, kind, lines: sec.lines.map((l) => ({ id: l.id, text: l.text })) }).then(() => undefined));
+      emit({ t: 'insertSection', afterSectionId: index > 0 ? sections[index - 1].id : null, section: sectionPayload(sec) });
       get().requestFocus(sec.lines[sec.lines.length - 1].id, -1);
       return id;
     },
@@ -407,6 +448,7 @@ export const useSong = create<SongStore>((set, get) => {
           })
           .then(() => undefined)
       );
+      emit({ t: 'insertSection', afterSectionId: src.id, section: sectionPayload(copy) });
     },
 
     deleteSection: (sectionId) => {
@@ -425,6 +467,7 @@ export const useSong = create<SongStore>((set, get) => {
       }
       set({ doc: { ...doc, sections: doc.sections.filter((s) => s.id !== sectionId).map((s, i) => ({ ...s, sort: i })) } });
       push((d) => repo.deleteSection(d, sectionId));
+      emit({ t: 'deleteSection', sectionId });
     },
 
     moveSection: (from, to) => {
@@ -437,15 +480,69 @@ export const useSong = create<SongStore>((set, get) => {
       const ids = sections.map((s) => s.id);
       const sid = doc.song.id;
       push((d) => repo.reorderSections(d, sid, ids), 'order:' + sid);
+      emit({ t: 'moveSection', sectionId: m.id, toIndex: to });
     },
 
     updateSection: (sectionId, patch) => {
       patchSection(sectionId, (s) => ({ ...s, ...patch }));
       push((d) => repo.updateSection(d, sectionId, patch), 'sec:' + sectionId + ':' + Object.keys(patch).sort().join(','));
+      const { collapsed: _c, ...shared } = patch;
+      if (Object.keys(shared).length) emit({ t: 'sectionMeta', sectionId, patch: shared });
     },
 
     setBars: (sectionId, bars) => get().updateSection(sectionId, { bars }),
     setMelody: (sectionId, melody) => get().updateSection(sectionId, { melody }),
+
+    applyRemoteOp: (op) => {
+      const doc = get().doc;
+      if (!doc) return;
+      const next = applyOp(doc, op);
+      if (next === doc) return;
+      set({ doc: next });
+      const songId = doc.song.id;
+      const sectionOf = (lineId: string) => next.sections.find((s) => s.lines.some((l) => l.id === lineId));
+      switch (op.t) {
+        case 'lineText':
+          push((d) => repo.updateLine(d, op.lineId, { text: op.text }), 'line:' + op.lineId);
+          break;
+        case 'lineMeta':
+          push((d) => repo.updateLine(d, op.lineId, op.patch));
+          break;
+        case 'insertLine': {
+          const sec = sectionOf(op.line.id);
+          const line = sec?.lines.find((l) => l.id === op.line.id);
+          if (line) push((d) => repo.insertLine(d, line));
+          break;
+        }
+        case 'deleteLine':
+          push((d) => repo.deleteLine(d, op.lineId));
+          break;
+        case 'insertSection': {
+          const i = next.sections.findIndex((s) => s.id === op.section.id);
+          const s = next.sections[i];
+          push((d) =>
+            repo
+              .insertSection(d, songId, i, { id: s.id, kind: s.kind, label: s.label, feeling: s.feeling, intensity: s.intensity, bars: s.bars, melody: s.melody, lines: s.lines.map((l) => ({ id: l.id, text: l.text, locked: l.locked, alts: l.alts, chords: l.chords })) })
+              .then(() => undefined)
+          );
+          break;
+        }
+        case 'deleteSection':
+          push((d) => repo.deleteSection(d, op.sectionId));
+          break;
+        case 'moveSection': {
+          const ids = next.sections.map((s) => s.id);
+          push((d) => repo.reorderSections(d, songId, ids), 'order:' + songId);
+          break;
+        }
+        case 'sectionMeta':
+          push((d) => repo.updateSection(d, op.sectionId, op.patch));
+          break;
+        case 'songMeta':
+          push((d) => repo.updateSong(d, songId, op.patch));
+          break;
+      }
+    },
 
     transposeSong: (semi) => {
       const doc = get().doc;

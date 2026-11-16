@@ -5,6 +5,7 @@
     "noUncheckedIndexedAccess": false,
     "resolveJsonModule": true,
     "types": ["node"],
+    "allowImportingTsExtensions": true,
     "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src", "server", "e2e", "scripts", "expo-env.d.ts", ".expo/types/**/*.ts"],

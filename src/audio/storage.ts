@@ -60,3 +60,15 @@ export async function writeTemp(name: string, bytes: Uint8Array | string): Promi
   f.writeSync(bytes);
   return f.uri;
 }
+
+/** Write audio under a given name (used when a take arrives from sync). */
+export async function writeAudioNamed(name: string, bytes: Uint8Array): Promise<void> {
+  const f = new File(dir(), name);
+  if (f.exists) f.delete();
+  f.create();
+  f.writeSync(bytes);
+}
+
+export async function hasAudio(name: string): Promise<boolean> {
+  return new File(dir(), name).exists;
+}

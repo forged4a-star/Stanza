@@ -18,6 +18,9 @@ import { ChordGrid } from '../../features/chords/ChordGrid';
 import { ChordPicker, openChordPicker } from '../../features/chords/ChordPicker';
 import { ChordsSheet } from '../../features/chords/ChordsSheet';
 import { stopPlayer } from '../../features/chords/player';
+import { ShapeSheet } from '../../features/shape/ShapeSheet';
+import { connectSong, disconnect, sendPresence, useCollab } from '../../collab/collab';
+import { CommentsSheet } from '../../collab/CommentsSheet';
 import { MelodyChip, MelodyRoll, useMelodyUI } from '../../features/melody/MelodyRoll';
 import { parseKey, romanNumeral } from '../../core/music/theory';
 import { WordSheet, type WordTarget } from '../../features/words/WordSheet';
@@ -32,7 +35,7 @@ import { choose, toast } from '../../ui/Dialogs';
 import { Icon, IconButton } from '../../ui/kit';
 import { font, radius, space, TAP, useTheme } from '../../ui/theme';
 
-type Sheet = null | 'song' | 'takes' | 'versions' | 'arrange' | 'inbox' | 'sound' | 'words' | 'chords';
+type Sheet = null | 'song' | 'takes' | 'versions' | 'arrange' | 'inbox' | 'sound' | 'words' | 'chords' | 'shape' | 'comments';
 
 export default function SongPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -67,7 +70,7 @@ export default function SongPage() {
       .then((l) => setInboxCount(l.length));
   }, [sheet, capturePhase]);
 
-  const analysis = useSongAnalysis(doc, { highlight: settings.highlight, modes: settings.soundModes, sensitivity: settings.sensitivity, scope: settings.scope });
+  const analysis = useSongAnalysis(doc, { highlight: settings.highlight, modes: settings.soundModes, sensitivity: settings.sensitivity, scope: settings.scope, flags: settings.clicheFlags });
   const names = useMemo(() => (doc ? sectionDisplayNames(doc.sections) : []), [doc]);
 
   const songKey = doc?.song.key ?? null;
@@ -94,6 +97,20 @@ export default function SongPage() {
 
   // stop the chord player when leaving the song
   useEffect(() => () => stopPlayer(), []);
+
+  // co-writing: join the song's room while it's open
+  const collabStatus = useCollab((c) => c.status);
+  const peers = useCollab((c) => c.peers);
+  const openComments = useCollab((c) => c.comments.filter((x) => !x.resolved).length);
+  const activeLineId = useSong((x) => x.activeLineId);
+  useEffect(() => {
+    if (!id) return;
+    void connectSong(id);
+    return () => disconnect();
+  }, [id]);
+  useEffect(() => {
+    if (collabStatus === 'live') sendPresence(activeLineId);
+  }, [activeLineId, collabStatus]);
 
   const recordHere = useCallback(() => {
     const st = useSong.getState();
@@ -187,6 +204,16 @@ export default function SongPage() {
         <IconButton icon="ellipsis-horizontal" label="Song options" onPress={() => setSheet('song')} testID="open-song-sheet" />
       </View>
 
+      {collabStatus !== 'off' && (
+        <Pressable onPress={() => setSheet('comments')} style={[styles.live, { backgroundColor: t.surface2 }]} accessibilityRole="button" accessibilityLabel="Co-writers and comments" testID="live-bar">
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: collabStatus === 'live' ? t.ok : t.warn }} />
+          <Text style={{ color: t.textDim, fontSize: font.small, flex: 1 }} numberOfLines={1}>
+            {collabStatus === 'live' ? `Live · ${peers.map((p) => p.name).join(', ')}` : collabStatus === 'connecting' ? 'Connecting…' : 'Offline · your edits are kept here'}
+          </Text>
+          <Icon name="chatbubble-ellipses-outline" size={16} color={t.textDim} />
+          <Text style={{ color: t.textDim, fontSize: font.small }} testID="comment-count">{openComments}</Text>
+        </Pressable>
+      )}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={[styles.page, { paddingBottom: 140 + insets.bottom }]} keyboardShouldPersistTaps={Platform.OS === "web" ? "always" : "handled"} keyboardDismissMode="interactive" testID="lyric-page">
           {doc.sections.map((s, i) => (
@@ -252,6 +279,8 @@ export default function SongPage() {
       <WordSheet target={wordTarget} onClose={() => setWordTarget(null)} />
       <ChordsSheet visible={sheet === 'chords'} onClose={() => setSheet(null)} />
       <ChordPicker />
+      <ShapeSheet visible={sheet === 'shape'} onClose={() => setSheet(null)} />
+      <CommentsSheet visible={sheet === 'comments'} onClose={() => setSheet(null)} lineId={activeLineId} />
     </View>
   );
 }
@@ -260,6 +289,7 @@ const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.xs, borderBottomWidth: StyleSheet.hairlineWidth, minHeight: TAP + 4 },
   title: { flex: 1, minWidth: 0, width: 0, fontSize: font.body + 2, fontWeight: '600', paddingHorizontal: space.sm, minHeight: TAP },
   saveDot: { width: 20, alignItems: 'center' },
+  live: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.lg, minHeight: 34 },
   page: { paddingHorizontal: space.md, paddingTop: space.lg, maxWidth: 760, width: '100%', alignSelf: 'center' },
   addSection: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, minHeight: TAP, borderWidth: 1, borderStyle: 'dashed', borderRadius: radius.md, marginLeft: 22, marginRight: 46 },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.md, gap: space.md },

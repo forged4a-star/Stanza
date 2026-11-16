@@ -13,8 +13,10 @@ import { askText, choose, confirm, toast } from '../../ui/Dialogs';
 import { Button, Chip, Field, ListItem, Row, SectionTitle, Segmented, ToggleRow } from '../../ui/kit';
 import { font, space, useTheme } from '../../ui/theme';
 import { exportSong, type ExportKind } from '../export/exportActions';
+import { Share, Platform } from 'react-native';
+import { roomFor, shareSong, stopSharing, useCollab } from '../../collab/collab';
 
-export type SongSheetAction = 'versions' | 'takes' | 'arrange' | 'sound' | 'compare';
+export type SongSheetAction = 'versions' | 'takes' | 'arrange' | 'sound' | 'compare' | 'shape';
 
 export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onClose: () => void; onOpen: (a: SongSheetAction) => void }) {
   const t = useTheme();
@@ -151,6 +153,8 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
               }}
               testID="edit-tags"
             />
+            <ShareItem />
+            <ListItem icon="pulse-outline" title="Song shape" subtitle="Feeling map, verse/chorus contrast, questions" onPress={() => onOpen('shape')} testID="open-shape" />
             <ListItem icon="time-outline" title="Versions" subtitle="Snapshots, compare, restore" onPress={() => onOpen('versions')} testID="open-versions" />
             <ListItem icon="albums-outline" title="Takes" subtitle="Recordings in this song" onPress={() => onOpen('takes')} />
             <ListItem icon="reorder-three" title="Arrange sections" onPress={() => onOpen('arrange')} testID="open-arrange" />
@@ -198,6 +202,7 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
             <ToggleRow label="Stress pattern" hint="Dots under each syllable: big = strong, small = weak" value={settings.showStress} onChange={(v) => settings.set({ showStress: v })} testID="toggle-stress" />
             <ToggleRow label="Rhyme scheme letters" value={settings.showScheme} onChange={(v) => settings.set({ showScheme: v })} />
             <ToggleRow label="Sound highlighting" value={settings.highlight} onChange={(v) => settings.set({ highlight: v })} testID="toggle-highlight" />
+            <ToggleRow label="Cliché and repetition flags" hint="Dotted underline on well-worn phrases, tired rhymes and over-used words" value={settings.clicheFlags} onChange={(v) => settings.set({ clicheFlags: v })} testID="toggle-cliches" />
             <ListItem icon="color-palette-outline" title="Highlight settings" subtitle="Rhyme types, sensitivity, colours" onPress={() => onOpen('sound')} />
             <View style={{ padding: space.lg }}>
               <SectionTitle>Theme</SectionTitle>
@@ -235,5 +240,58 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
         )}
       </ScrollView>
     </BottomSheet>
+  );
+}
+
+function ShareItem() {
+  const status = useCollab((c) => c.status);
+  const [busy, setBusy] = useState(false);
+  const doc = useSong((s) => s.doc);
+  const showLink = async (link: string) => {
+    if (Platform.OS !== 'web') {
+      try {
+        await Share.share({ message: link });
+        return;
+      } catch {
+        // fall through to the dialog
+      }
+    }
+    await askText('Share this link with co-writers', link, { ok: 'Done', message: 'Anyone with the link can edit and comment.' });
+  };
+  if (status !== 'off')
+    return (
+      <ListItem
+        icon="people-outline"
+        title="Shared for co-writing"
+        subtitle="Copy the link again, or stop sharing on this device"
+        onPress={async () => {
+          const v = await choose('Co-writing', [
+            { label: 'Show the share link', value: 'link' },
+            { label: 'Stop sharing on this device', value: 'stop', danger: true },
+          ]);
+          const room = doc ? await roomFor(doc.song.id) : null;
+          if (v === 'link' && room) await showLink(`${room.server}/join/${room.roomId}?k=${room.key}`);
+          if (v === 'stop') await stopSharing();
+        }}
+        testID="share-song"
+      />
+    );
+  return (
+    <ListItem
+      icon="people-outline"
+      title={busy ? 'Creating link…' : 'Share for co-writing'}
+      subtitle="Live editing and comments by link (needs your Stanza server)"
+      onPress={async () => {
+        setBusy(true);
+        try {
+          await showLink(await shareSong());
+        } catch (e) {
+          toast(String((e as Error).message ?? e));
+        } finally {
+          setBusy(false);
+        }
+      }}
+      testID="share-song"
+    />
   );
 }

@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { processPendingRecordings } from '../audio/analysisJob';
+import { startAutoSync } from '../sync/runner';
 import { getDb } from '../db/client';
 import { CaptureHost } from '../features/capture/capture';
 import { useSettings } from '../store/settings';
@@ -36,6 +37,7 @@ export default function RootLayout() {
         await useSettings.getState().load();
         setReady(true);
         setupQuickActions();
+        void startAutoSync();
         // finish analysing any takes left over from last time
         void processPendingRecordings();
       } catch (e) {

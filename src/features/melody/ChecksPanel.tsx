@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { startMic } from '../../audio/mic';
 import { allIssues, type Issue } from '../../core/lyrics/checks';
+import { findFlags } from '../../core/lyrics/shape';
 import { sungRange } from '../../core/music/melody';
 import { sectionDisplayNames } from '../../core/model';
 import { midiName } from '../../core/music/theory';
@@ -13,6 +14,30 @@ import { Button, Row, SectionTitle } from '../../ui/kit';
 import { font, radius, space, useTheme } from '../../ui/theme';
 import { PianoKeys } from '../chords/ChordDiagram';
 import { openMelody } from './MelodyRoll';
+
+function FlagList() {
+  const t = useTheme();
+  const doc = useSong((s) => s.doc)!;
+  const flags = useMemo(() => findFlags(doc.sections), [doc]);
+  const lineText = (id: string) => doc.sections.flatMap((s) => s.lines).find((l) => l.id === id)?.text ?? '';
+  return (
+    <View testID="flag-list">
+      <SectionTitle>Clichés and repetition · {flags.length}</SectionTitle>
+      {flags.length === 0 && <Text style={{ color: t.ok }}>Nothing well-worn found.</Text>}
+      {flags.map((f, k) => (
+        <View key={k} style={{ flexDirection: 'row', gap: space.sm, paddingVertical: 6 }}>
+          <View style={{ width: 4, borderRadius: 2, backgroundColor: t.warn }} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: t.text }}>{f.message}</Text>
+            <Text style={{ color: t.textDim, fontSize: font.small }} numberOfLines={1}>
+              {lineText(f.lineId)}
+            </Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
 
 const KIND_LABEL: Record<Issue['kind'], string> = { prosody: 'Prosody', 'closed-vowel': 'Singability', consonants: 'Singability', range: 'Range' };
 
@@ -86,7 +111,7 @@ export function ChecksPanel({ onJump }: { onJump?: () => void }) {
       {listening && <Text style={{ color: t.record, marginTop: space.sm }}>Listening… slide from your lowest to your highest comfortable note.</Text>}
 
       <SectionTitle>Checks · {total}</SectionTitle>
-      {groups.length === 0 && <Text style={{ color: t.textDim }}>Write a melody in a section (section menu → Melody) and its prosody and singability are checked here.</Text>}
+      {groups.length === 0 && <Text style={{ color: t.textDim }} testID="checks-empty">Write a melody in a section (section menu → Melody) and its prosody and singability are checked here.</Text>}
       {groups.length > 0 && total === 0 && <Text style={{ color: t.ok }}>No problems found.</Text>}
       {groups.map((g) =>
         g.issues.length ? (
@@ -112,6 +137,7 @@ export function ChecksPanel({ onJump }: { onJump?: () => void }) {
           </View>
         ) : null
       )}
+      {settings.clicheFlags && <FlagList />}
       <View style={{ height: space.md, borderRadius: radius.sm }} />
     </View>
   );

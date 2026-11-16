@@ -13,6 +13,7 @@ import { toast } from '../../ui/Dialogs';
 import { Icon } from '../../ui/kit';
 import { font, space, useTheme, type Theme } from '../../ui/theme';
 import type { LineMeta } from './useSongAnalysis';
+import { useCollab } from '../../collab/collab';
 
 /** Where the caret is, for tools that act on "the word I'm on". */
 export const caret = { lineId: null as string | null, pos: 0 };
@@ -128,6 +129,7 @@ function LyricLineImpl({ line, meta, display, placeholder, testID }: Props) {
     [line.id, translate]
   );
 
+  const commentCount = useCollab((c) => c.comments.filter((x) => x.lineId === line.id && !x.resolved).length);
   const count = meta?.syllables ?? 0;
   const mismatch = meta?.mismatch;
   const lyricStyle = [styles.lyric, { color: t.text }];
@@ -184,6 +186,7 @@ function LyricLineImpl({ line, meta, display, placeholder, testID }: Props) {
     <View style={styles.row} testID={testID}>
       <View style={styles.left}>
         {line.locked ? <Icon name="lock-closed" size={13} color={t.textFaint} /> : line.alts.length ? <Text style={[styles.badge, { color: t.textDim, borderColor: t.border }]}>{line.alts.length + 1}</Text> : null}
+        {commentCount > 0 && <Icon name="chatbubble" size={11} color={t.accent} />}
       </View>
       <Animated.View style={{ flex: 1, transform: [{ translateX: translate }] }} {...(editing ? {} : pan.panHandlers)}>
         {editing ? (
@@ -216,7 +219,7 @@ function findLineNow(id: string): Line | null {
 
 /** Inline text with per-syllable highlight spans (fast path). */
 function HighlightedText({ line, meta, display, t }: { line: Line; meta: LineMeta | undefined; display: LineDisplay; t: Theme }) {
-  if (!meta || !meta.marks.some((m) => m.length)) {
+  if (!meta || (!meta.marks.some((m) => m.length) && !meta.flags.length)) {
     return <WordTapText text={line.text} lineId={line.id} display={display} />;
   }
   const out: React.ReactNode[] = [];
@@ -224,12 +227,18 @@ function HighlightedText({ line, meta, display, t }: { line: Line; meta: LineMet
   meta.info.syllables.forEach((s, i) => {
     if (s.start > pos) out.push(<Text key={'g' + i}>{line.text.slice(pos, s.start)}</Text>);
     const { bg, underline } = markColors(t, meta.marks[i]);
+    const flagged = meta.flags.find((f) => f.start < s.end && f.end > s.start);
     const word = meta.info.words[s.wordIndex];
     out.push(
       <Text
         key={'s' + i}
         onLongPress={display.onWord ? () => display.onWord!(word.text, line.id) : undefined}
-        style={[bg ? { backgroundColor: bg, borderRadius: 3 } : null, underline ? { textDecorationLine: 'underline', textDecorationColor: underline, textDecorationStyle: 'solid' } : null]}
+        style={[
+          bg ? { backgroundColor: bg, borderRadius: 3 } : null,
+          underline ? { textDecorationLine: 'underline', textDecorationColor: underline, textDecorationStyle: 'solid' } : null,
+          flagged ? { textDecorationLine: 'underline', textDecorationColor: t.warn, textDecorationStyle: 'dotted' } : null,
+        ]}
+        accessibilityHint={flagged?.message}
       >
         {line.text.slice(s.start, s.end)}
       </Text>

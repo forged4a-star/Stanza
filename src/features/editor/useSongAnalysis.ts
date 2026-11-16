@@ -6,6 +6,7 @@ import { useDeferredValue, useMemo } from 'react';
 import { parallelSectionIndex, sectionDisplayNames, type SongDoc } from '../../core/model';
 import { analyzeLine, type LineInfo } from '../../core/phonetics/line';
 import { analyzeSound, type Mark, type RhymeFamily, type SoundMode } from '../../core/phonetics/sound';
+import { findFlags, type Flag } from '../../core/lyrics/shape';
 
 export interface LineMeta {
   info: LineInfo;
@@ -14,6 +15,8 @@ export interface LineMeta {
   mismatch: { other: number; where: string } | null;
   scheme: string | null;
   marks: Mark[][];
+  /** cliché / repetition flags (only when enabled) */
+  flags: Flag[];
 }
 
 export interface SongAnalysis {
@@ -22,11 +25,13 @@ export interface SongAnalysis {
   names: string[];
   /** lineIndex (flat) → line id */
   order: string[];
+  flags: Flag[];
 }
 
-export function useSongAnalysis(doc: SongDoc | null, opts: { highlight: boolean; modes: SoundMode[]; sensitivity: number; scope: 'end' | 'all' }): SongAnalysis | null {
+export function useSongAnalysis(doc: SongDoc | null, opts: { highlight: boolean; modes: SoundMode[]; sensitivity: number; scope: 'end' | 'all'; flags?: boolean }): SongAnalysis | null {
   const sections = useDeferredValue(doc?.sections);
   const { highlight, modes, sensitivity, scope } = opts;
+  const withFlags = !!opts.flags;
   const modesKey = modes.join(',');
   return useMemo(() => {
     if (!sections) return null;
@@ -35,7 +40,7 @@ export function useSongAnalysis(doc: SongDoc | null, opts: { highlight: boolean;
     const sound = analyzeSound(flat, { modes: highlight ? (modesKey ? (modesKey.split(',') as SoundMode[]) : []) : [], sensitivity, scope });
     const lines = new Map<string, LineMeta>();
     flat.forEach((l, i) => {
-      lines.set(l.id, { info: sound.lines[i], syllables: sound.lines[i].syllables.length, mismatch: null, scheme: sound.scheme[i], marks: sound.marks[i] });
+      lines.set(l.id, { info: sound.lines[i], syllables: sound.lines[i].syllables.length, mismatch: null, scheme: sound.scheme[i], marks: sound.marks[i], flags: [] });
     });
     sections.forEach((s, si) => {
       const p = parallelSectionIndex(sections, si);
@@ -49,6 +54,8 @@ export function useSongAnalysis(doc: SongDoc | null, opts: { highlight: boolean;
         if (theirs !== mine.syllables) mine.mismatch = { other: theirs, where: `${names[p]}, line ${li + 1}` };
       });
     });
-    return { lines, families: sound.families, names, order: flat.map((l) => l.id) };
-  }, [sections, highlight, modesKey, sensitivity, scope]);
+    const flags = withFlags ? findFlags(sections) : [];
+    for (const f of flags) lines.get(f.lineId)?.flags.push(f);
+    return { lines, families: sound.families, names, order: flat.map((l) => l.id), flags };
+  }, [sections, highlight, modesKey, sensitivity, scope, withFlags]);
 }

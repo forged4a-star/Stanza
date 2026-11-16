@@ -39,10 +39,12 @@
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@types/react": "~19.3.0",
+    "@types/ws": "^8.18.2",
     "subtlex-word-frequencies": "^2.0.0",
     "typescript": "~6.0.3",
     "vitest": "^5.1.0",
-    "wordnet-db": "^3.1.14"
+    "wordnet-db": "^3.1.14",
+    "ws": "^8.23.0"
   },
   "scripts": {
     "start": "expo start",
@@ -52,7 +54,10 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "build:data": "node scripts/build-data.mjs",
-    "export:web": "expo export --platform web"
+    "export:web": "expo export --platform web",
+    "e2e": "scripts/e2e.sh",
+    "server": "node server/server.ts",
+    "check": "tsc --noEmit && vitest run"
   },
   "private": true,
   "react-native-audio-api": {

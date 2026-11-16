@@ -7,6 +7,9 @@ import { getDb } from '../db/client';
 import { shareFile } from '../platform/share';
 import { useSettings } from '../store/settings';
 import { toast } from '../ui/Dialogs';
+import { useEffect, useState } from 'react';
+import { loadSyncConfig, runSync, saveSyncConfig, startAutoSync, useSync } from '../sync/runner';
+import { Button, Field } from '../ui/kit';
 import { IconButton, ListItem, Row, SectionTitle, Segmented, ToggleRow } from '../ui/kit';
 import { font, space, TAP, useTheme } from '../ui/theme';
 
@@ -64,6 +67,7 @@ export default function SettingsScreen() {
           onChange={(v) => s.set({ aiWritesLyrics: v })}
           testID="ai-writes-toggle"
         />
+        <SyncSettings />
         <View style={{ paddingHorizontal: space.lg }}>
           <SectionTitle>Your data</SectionTitle>
         </View>
@@ -81,6 +85,42 @@ export default function SettingsScreen() {
           Everything is stored on this device and works without internet. Rhyme and pronunciation data: CMU Pronouncing Dictionary. Thesaurus and definitions: Princeton WordNet.
         </Text>
       </ScrollView>
+    </View>
+  );
+}
+
+function SyncSettings() {
+  const t = useTheme();
+  const sync = useSync();
+  const [url, setUrl] = useState('');
+  const [token, setToken] = useState('');
+  const [name, setName] = useState('');
+  useEffect(() => {
+    void loadSyncConfig().then((c) => {
+      setUrl(c.url);
+      setToken(c.token);
+      setName(c.name);
+    });
+  }, []);
+  const save = async () => {
+    await saveSyncConfig({ url: url.trim().replace(/\/+$/, ''), token: token.trim(), name: name.trim() });
+    await startAutoSync();
+  };
+  const when = sync.config.lastSyncAt ? new Date(sync.config.lastSyncAt).toLocaleString() : 'never';
+  return (
+    <View style={{ paddingHorizontal: space.lg, gap: space.sm }}>
+      <SectionTitle>Backup, sync and co-writing (optional)</SectionTitle>
+      <Text style={{ color: t.textDim, fontSize: font.small }}>Everything works offline. To back up, sync between devices and share songs for co-writing, run a Stanza server (see server/README) and enter it here.</Text>
+      <Field label="Server address" value={url} onChangeText={setUrl} onBlur={save} placeholder="https://songs.example.com" autoCapitalize="none" autoCorrect={false} testID="sync-url" />
+      <Field label="Sync key" value={token} onChangeText={setToken} onBlur={save} placeholder="the server's STANZA_TOKEN" autoCapitalize="none" autoCorrect={false} secureTextEntry testID="sync-token" />
+      <Field label="Your name for co-writers" value={name} onChangeText={setName} onBlur={save} placeholder="e.g. Sam" testID="sync-name" />
+      <ToggleRow label="Sync automatically" hint="On start, every 5 minutes and when you leave the app" value={sync.config.enabled} onChange={async (v) => (await saveSyncConfig({ enabled: v }), await startAutoSync())} testID="sync-auto" />
+      <Row>
+        <Button title="Sync now" icon="sync" busy={sync.status === 'syncing'} onPress={async () => (await save(), await runSync())} disabled={!url || !token} testID="sync-now" />
+        <Text style={{ color: sync.status === 'error' ? t.danger : t.textDim, fontSize: font.small, flex: 1 }} testID="sync-status">
+          {sync.status === 'ok' ? `Synced: ${sync.message}` : sync.message || `Last sync: ${when}`}
+        </Text>
+      </Row>
     </View>
   );
 }

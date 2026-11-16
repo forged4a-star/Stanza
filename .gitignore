@@ -42,3 +42,7 @@ yarn-error.*
 
 # raw downloads used to build bundled data
 scripts/raw/cmudict.dict
+
+# e2e build output and local server data
+dist-e2e/
+stanza-server.db*

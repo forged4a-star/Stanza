@@ -916,3 +916,65 @@ export async function dumpLibrary(d: SqlDriver): Promise<LibraryDump> {
     scraps: await listScraps(d, '', 100000),
   };
 }
+
+// ------------------------------------------------------------------ sync helpers
+
+/**
+ * Make the local song identical to `doc` (same ids), creating it if needed.
+ * Recordings are untouched. `updatedAt` is set to the given time so the
+ * change isn't pushed straight back.
+ */
+export async function replaceSongDoc(db: Db, doc: SongDoc, updatedAt: number, deletedAt: number | null = null): Promise<void> {
+  await db.tx(async (d) => {
+    const exists = await d.first<Row>(`SELECT id FROM songs WHERE id = ?`, [doc.song.id]);
+    if (!exists) {
+      await d.run(`INSERT INTO songs (id, title, status, created_at, updated_at, opened_at) VALUES (?, ?, ?, ?, ?, ?)`, [
+        doc.song.id,
+        doc.song.title,
+        doc.song.status,
+        doc.song.createdAt || updatedAt,
+        updatedAt,
+        0,
+      ]);
+    }
+    await d.run(
+      `UPDATE songs SET title = ?, status = ?, pinned = ?, song_key = ?, bpm = ?, time_sig = ?, capo = ?, deleted_at = ? WHERE id = ?`,
+      [doc.song.title, doc.song.status, doc.song.pinned ? 1 : 0, doc.song.key, doc.song.bpm, doc.song.timeSig.join('/'), doc.song.capo, deletedAt, doc.song.id]
+    );
+    await d.run(`DELETE FROM song_tags WHERE song_id = ?`, [doc.song.id]);
+    for (const t of doc.song.tags) await d.run(`INSERT OR IGNORE INTO song_tags (song_id, tag) VALUES (?, ?)`, [doc.song.id, t]);
+    await d.run(`DELETE FROM sections WHERE song_id = ?`, [doc.song.id]);
+    for (let i = 0; i < doc.sections.length; i++) {
+      const s = doc.sections[i];
+      await insertSection(d, doc.song.id, i, {
+        id: s.id,
+        kind: s.kind,
+        label: s.label,
+        collapsed: s.collapsed,
+        feeling: s.feeling,
+        intensity: s.intensity,
+        bars: s.bars,
+        melody: s.melody,
+        lines: s.lines.map((l) => ({ id: l.id, text: l.text, locked: l.locked, alts: l.alts, chords: l.chords })),
+      });
+    }
+    await refreshSearchText(d, doc.song.id);
+    await d.run(`UPDATE songs SET updated_at = ? WHERE id = ?`, [updatedAt, doc.song.id]);
+  });
+}
+
+/** Insert a recording row as-is (from sync), ignoring it if it already exists. */
+export async function upsertRecording(d: SqlDriver, r: Recording): Promise<boolean> {
+  const exists = await d.first<Row>(`SELECT id FROM recordings WHERE id = ?`, [r.id]);
+  if (exists) return false;
+  await d.run(
+    `INSERT INTO recordings (id, song_id, section_id, line_id, title, file, mime, duration_ms, bpm, rec_key, transcript, take_no, starred, created_at, analysis) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [r.id, r.songId, r.sectionId, r.lineId, r.title, r.file, r.mime, r.durationMs, r.bpm, r.key, r.transcript, r.takeNo, r.starred ? 1 : 0, r.createdAt, r.analysis === 'pending' ? 'done' : r.analysis]
+  );
+  return true;
+}
+
+export async function songsChangedSince(d: SqlDriver, since: number): Promise<{ id: string; updatedAt: number; deletedAt: number | null }[]> {
+  const rows = await d.all<Row>(`SELECT id, updated_at, deleted_at FROM songs WHERE updated_at > ? OR coalesce(deleted_at, 0) > ?`, [since, since]);
+  return rows.map((r) => ({ id: r.id, updatedAt: Math.max(Number(r.updated_at), Number(r.deleted_at ?? 0)), deletedAt: r.deleted_at == null ? null : Number(r.deleted_at) }));
+}
