@@ -5,6 +5,7 @@
  * remove it. Lyrics aren't edited here, so nothing moves by accident.
  */
 import { memo, useMemo } from 'react';
+import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { chordSheetText } from '../../core/export/chordSheet';
 import type { Line, SectionWithLines, SongDoc } from '../../core/model';
@@ -106,6 +107,7 @@ export function ChordSheetView({ doc, names, label }: { doc: SongDoc; names: str
           <Chip label="Numerals" selected={settings.romanChords} onPress={() => settings.set({ romanChords: !settings.romanChords })} testID="sheet-roman" />
           <Button compact title="A−" onPress={() => settings.set({ sheetSize: Math.max(14, size - 2) })} testID="sheet-smaller" />
           <Button compact title="A+" onPress={() => settings.set({ sheetSize: Math.min(34, size + 2) })} testID="sheet-larger" />
+          <Button compact icon="tv-outline" title="Stage view" onPress={() => router.push(`/perform/${doc.song.id}`)} testID="open-stage" />
           <Button
             compact
             icon="share-outline"

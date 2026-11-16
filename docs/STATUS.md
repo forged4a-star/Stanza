@@ -383,3 +383,28 @@ Found by reading the native engine's source, not just testing in a browser:
   diagrams use the chosen shapes. "Avoid barre chords" is a beginner toggle.
 - Test fix: the chord-sheet browser test reloaded before the preference was
   written; it now waits.
+
+## 1.1 batch 1: hum a strum, rhyme web, energy map, stage view
+
+- **Hum a strum** (Chords → Play → New strum → "Play it in"). Tap the rhythm on a
+  pad after a one-bar count-in, or hum/clap it into the mic. Hits are snapped to
+  the bar's grid (eighths, or sixteenths if hits fall between eighths); several
+  bars are folded into one and a stray hit is ignored; on the beat = down,
+  between = up, quiet hits become soft strokes. It fills the grid to tidy up.
+  Tested on synthetic audio and real taps in the browser. **Not tested with a
+  real microphone**; very noisy rooms or quiet humming may give "could not hear
+  a rhythm".
+- **Rhyme web** (song menu). Rhyme families as clusters, line endings that rhyme
+  with nothing, one sound carrying the song, and worn-out rhyme pairs.
+- **Energy map** (Song shape → Energy). Drag each section's dot to draw the
+  energy you want; the thin line is what the song does (melody height, range,
+  rhythm, chord pace, line length). Both are relative across the song. Where they
+  disagree it names a lever ("sing it higher", "leave more space"), never words.
+- **Stage view.** The app already had a performance mode, so this upgrades it
+  instead of adding a second screen: tempo-and-structure pacing for the whole
+  song (not "one line per bar"), chords placed over the right syllable, touch the
+  page to pause, speed %, transpose, chords on/off, and the screen stays awake.
+  Open it from the song menu or the chord sheet ("Stage view").
+- Fixed along the way: the tap pad listens for the touch *starting* (a tap's time
+  is when the finger lands), not the release.
+- Checks: 151 unit tests and all 11 browser suites pass. Lint cannot run here.

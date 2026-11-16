@@ -18,6 +18,7 @@ import { useSettings } from '../../store/settings';
 import { useSong } from '../../store/song';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { confirm, toast } from '../../ui/Dialogs';
+import { RhythmInput } from './RhythmInput';
 import { Button, Chip, Field, Icon, Row, SectionTitle, Segmented } from '../../ui/kit';
 import { font, radius, space, useTheme } from '../../ui/theme';
 import { playScope, stopPlayer, usePlayer } from './player';
@@ -114,6 +115,15 @@ export function StrumEditor({ initial, existing, onClose }: { initial: CustomStr
     <BottomSheet visible onClose={onClose} title={existing ? 'Edit strum' : 'New strum'} height={0.9} testID="strum-editor">
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.xxl }} keyboardShouldPersistTaps="handled">
         <Field label="Name" value={draft.name} onChangeText={(v) => set({ name: v })} placeholder="e.g. Campfire" testID="strum-name" />
+
+        <SectionTitle>Play it in</SectionTitle>
+        <Text style={{ color: t.textDim, fontSize: font.small, marginBottom: space.sm }}>
+          Tap the rhythm or hum it ({doc ? Math.round(doc.song.bpm) : 90} bpm, after a one-bar count-in). It fills the grid below for you to tidy up.
+        </Text>
+        <RhythmInput
+          bpm={doc?.song.bpm ?? 90}
+          onGuess={(g) => setDraft({ ...draft, steps: g.strum.steps, resolution: g.strum.resolution })}
+        />
 
         <SectionTitle>Tap a step to change it</SectionTitle>
         <View testID="strum-grid" style={{ gap: space.sm }}>

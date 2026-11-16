@@ -16,7 +16,7 @@ import { exportSong, type ExportKind } from '../export/exportActions';
 import { Share, Platform } from 'react-native';
 import { roomFor, shareSong, stopSharing, useCollab } from '../../collab/collab';
 
-export type SongSheetAction = 'versions' | 'takes' | 'arrange' | 'sound' | 'compare' | 'shape' | 'import';
+export type SongSheetAction = 'versions' | 'takes' | 'arrange' | 'sound' | 'compare' | 'shape' | 'web' | 'import';
 
 export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onClose: () => void; onOpen: (a: SongSheetAction) => void }) {
   const t = useTheme();
@@ -154,6 +154,7 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
               testID="edit-tags"
             />
             <ShareItem />
+            <ListItem icon="git-network-outline" title="Rhyme web" subtitle="Families of rhymes, and line endings that rhyme with nothing" onPress={() => onOpen('web')} testID="open-web" />
             <ListItem icon="pulse-outline" title="Song shape" subtitle="Feeling map, verse/chorus contrast, questions" onPress={() => onOpen('shape')} testID="open-shape" />
             <ListItem icon="time-outline" title="Versions" subtitle="Snapshots, compare, restore" onPress={() => onOpen('versions')} testID="open-versions" />
             <ListItem icon="albums-outline" title="Takes" subtitle="Recordings in this song" onPress={() => onOpen('takes')} />
