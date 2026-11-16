@@ -3,7 +3,7 @@
  * and on Node's built-in SQLite in tests. All access is serialised through one
  * queue so a transaction never interleaves with other statements.
  */
-export type SqlParam = string | number | null;
+export type SqlParam = string | number | null | Uint8Array;
 
 export interface SqlDriver {
   exec(sql: string): Promise<void>;

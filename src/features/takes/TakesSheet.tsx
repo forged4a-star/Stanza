@@ -1,0 +1,176 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { sectionDisplayNames, type Recording } from '../../core/model';
+import { deleteAudio, playableUri } from '../../audio/storage';
+import { getDb } from '../../db/client';
+import * as repo from '../../db/repo';
+import { useSong } from '../../store/song';
+import { BottomSheet } from '../../ui/BottomSheet';
+import { askText, choose, confirm, toast } from '../../ui/Dialogs';
+import { Empty, Icon, IconButton, Segmented } from '../../ui/kit';
+import { font, radius, space, useTheme } from '../../ui/theme';
+import { exportTake } from '../export/exportActions';
+import { startCapture } from '../capture/capture';
+
+const fmt = (ms: number) => {
+  const s = Math.round(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+
+/** One shared player for the sheet. */
+export function useTakePlayer() {
+  const player = useAudioPlayer(null);
+  const status = useAudioPlayerStatus(player);
+  const [current, setCurrent] = useState<string | null>(null);
+  const toggle = async (rec: Recording) => {
+    if (current === rec.id && status.playing) {
+      player.pause();
+      return;
+    }
+    if (current !== rec.id) {
+      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
+      player.replace({ uri: await playableUri(rec.file) });
+      setCurrent(rec.id);
+    } else if (status.didJustFinish || (status.duration && status.currentTime >= status.duration - 0.05)) {
+      await player.seekTo(0);
+    }
+    player.play();
+  };
+  const stop = () => {
+    player.pause();
+    setCurrent(null);
+  };
+  return { toggle, stop, current, playing: status.playing, position: status.currentTime, duration: status.duration };
+}
+
+export function TakeRow({ rec, player, onChanged, context }: { rec: Recording; player: ReturnType<typeof useTakePlayer>; onChanged: () => void; context?: string }) {
+  const t = useTheme();
+  const isCur = player.current === rec.id;
+  const playing = isCur && player.playing;
+  const progress = isCur && player.duration ? player.position / player.duration : 0;
+  const menu = async () => {
+    const v = await choose(rec.title, [
+      { label: 'Rename', value: 'rename' },
+      { label: rec.starred ? 'Unstar' : 'Star as best take', value: 'star' },
+      { label: 'Edit transcript', value: 'transcript' },
+      { label: 'Share audio', value: 'share' },
+      ...(rec.songId ? [{ label: 'Move to Inbox', value: 'inbox' }] : []),
+      { label: 'Delete take', value: 'delete', danger: true },
+    ]);
+    const db = await getDb();
+    if (v === 'rename') {
+      const name = await askText('Take name', rec.title);
+      if (name?.trim()) await repo.updateRecording(db, rec.id, { title: name.trim() });
+    } else if (v === 'star') await repo.updateRecording(db, rec.id, { starred: !rec.starred });
+    else if (v === 'transcript') {
+      const tx = await askText('Transcript', rec.transcript, { multiline: true });
+      if (tx !== null) await repo.updateRecording(db, rec.id, { transcript: tx });
+    } else if (v === 'share') await exportTake(rec.id).catch(() => toast('Could not share this take'));
+    else if (v === 'inbox') {
+      await repo.updateRecording(db, rec.id, { songId: null, sectionId: null, lineId: null });
+      await repo.addIdea(db, 'audio', '', rec.id);
+      toast('Moved to Inbox');
+    } else if (v === 'delete') {
+      if (await confirm('Delete this take?', 'The audio is removed from this device.', 'Delete', true)) {
+        if (isCur) player.stop();
+        const file = await repo.deleteRecording(db, rec.id);
+        if (file) await deleteAudio(file);
+      }
+    }
+    onChanged();
+  };
+  return (
+    <View style={[styles.take, { borderBottomColor: t.border }]} testID={`take-${rec.id}`}>
+      <Pressable onPress={() => void player.toggle(rec).catch(() => toast('Could not play this take'))} style={[styles.play, { backgroundColor: t.surface2 }]} accessibilityRole="button" accessibilityLabel={playing ? `Pause ${rec.title}` : `Play ${rec.title}`}>
+        <Icon name={playing ? 'pause' : 'play'} size={20} color={t.accent} />
+      </Pressable>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ color: t.text, fontSize: font.body }} numberOfLines={1}>
+          {rec.starred ? '★ ' : ''}
+          {rec.title}
+        </Text>
+        <Text style={{ color: t.textDim, fontSize: font.small }} numberOfLines={1}>
+          {[fmt(rec.durationMs), context, rec.analysis === 'pending' ? 'analysing…' : null].filter(Boolean).join(' · ')}
+        </Text>
+        {!!rec.transcript && (
+          <Text style={{ color: t.textFaint, fontSize: font.small, fontStyle: 'italic' }} numberOfLines={2}>
+            “{rec.transcript}”
+          </Text>
+        )}
+        {isCur && (
+          <View style={[styles.progress, { backgroundColor: t.border }]}>
+            <View style={{ width: `${progress * 100}%`, height: 3, backgroundColor: t.accent, borderRadius: 2 }} />
+          </View>
+        )}
+      </View>
+      <IconButton icon="ellipsis-horizontal" label={`Options for ${rec.title}`} color={t.textDim} onPress={menu} />
+    </View>
+  );
+}
+
+export function TakesSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const t = useTheme();
+  const doc = useSong((s) => s.doc);
+  const recordings = useSong((s) => s.recordings);
+  const activeLineId = useSong((s) => s.activeLineId);
+  const player = useTakePlayer();
+  const [filter, setFilter] = useState<'all' | 'section' | 'starred'>('all');
+
+  useEffect(() => {
+    if (visible) void useSong.getState().reloadRecordings();
+    else player.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  const names = useMemo(() => (doc ? sectionDisplayNames(doc.sections) : []), [doc]);
+  if (!doc) return null;
+  const activeSection = activeLineId ? doc.sections.find((s) => s.lines.some((l) => l.id === activeLineId)) : null;
+  const where = (r: Recording) => {
+    const si = doc.sections.findIndex((s) => s.id === r.sectionId);
+    if (si < 0) return 'Whole song';
+    const li = r.lineId ? doc.sections[si].lines.findIndex((l) => l.id === r.lineId) : -1;
+    return li >= 0 ? `${names[si]}, line ${li + 1}` : names[si];
+  };
+  const list = recordings.filter((r) => (filter === 'starred' ? r.starred : filter === 'section' ? activeSection && r.sectionId === activeSection.id : true));
+  return (
+    <BottomSheet visible={visible} onClose={onClose} title="Takes" height={0.7} testID="takes-sheet">
+      <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm, gap: space.sm }}>
+        <Segmented
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: 'all', label: `All (${recordings.length})` },
+            { value: 'section', label: activeSection ? names[doc.sections.indexOf(activeSection)] : 'This section' },
+            { value: 'starred', label: 'Starred' },
+          ]}
+        />
+      </View>
+      <ScrollView contentContainerStyle={{ paddingBottom: space.xxl }}>
+        {list.length === 0 ? (
+          <Empty icon="mic-outline" title="No takes here yet" hint="Tap the record button. A take attaches to the line or section you're on." />
+        ) : (
+          list.map((r) => <TakeRow key={r.id} rec={r} player={player} context={where(r)} onChanged={() => void useSong.getState().reloadRecordings()} />)
+        )}
+        <Pressable
+          onPress={() => {
+            onClose();
+            startCapture({ songId: doc.song.id, sectionId: activeSection?.id ?? null, label: activeSection ? names[doc.sections.indexOf(activeSection)] : 'Song' });
+          }}
+          style={[styles.newTake, { borderColor: t.border }]}
+          accessibilityRole="button"
+        >
+          <Icon name="mic" size={18} color={t.record} />
+          <Text style={{ color: t.text, fontSize: font.body }}>Record a new take</Text>
+        </Pressable>
+      </ScrollView>
+    </BottomSheet>
+  );
+}
+
+const styles = StyleSheet.create({
+  take: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.sm, borderBottomWidth: StyleSheet.hairlineWidth, minHeight: 64 },
+  play: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  progress: { height: 3, borderRadius: 2, marginTop: 4, overflow: 'hidden' },
+  newTake: { margin: space.lg, minHeight: 52, borderRadius: radius.md, borderWidth: 1, borderStyle: 'dashed', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm },
+});

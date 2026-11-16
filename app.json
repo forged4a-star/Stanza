@@ -1,31 +1,105 @@
 {
   "expo": {
-    "name": "stanza",
+    "name": "Stanza",
     "slug": "stanza",
+    "scheme": "stanza",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "app.stanza.songwriter",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Stanza records your song ideas and takes.",
+        "NSSpeechRecognitionUsageDescription": "Stanza transcribes your takes on this device so you can search them."
+      }
     },
     "android": {
+      "package": "app.stanza.songwriter",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#141414",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "output": "single"
     },
     "plugins": [
       "expo-router",
       "expo-sqlite",
-      "expo-audio",
-      "expo-sharing"
-    ]
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Stanza records your song ideas and takes.",
+          "enableBackgroundRecording": false
+        }
+      ],
+      "expo-sharing",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Stanza records your song ideas and takes.",
+          "speechRecognitionPermission": "Stanza transcribes your takes on this device so you can search them.",
+          "androidSpeechServicePackages": [
+            "com.google.android.as",
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
+      ],
+      [
+        "react-native-audio-api",
+        {
+          "iosBackgroundMode": false,
+          "androidForegroundService": false,
+          "androidPermissions": [],
+          "enableFFmpeg": true
+        }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "RecordWidget",
+              "label": "Record idea",
+              "description": "One tap to record a song idea",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "resizeMode": "none",
+              "widgetCategory": "home_screen|keyguard"
+            }
+          ]
+        }
+      ],
+      "@bacons/apple-targets",
+      [
+        "expo-quick-actions",
+        {
+          "iosActions": [
+            {
+              "id": "record",
+              "title": "Record idea",
+              "icon": "symbol:mic.fill",
+              "params": {
+                "href": "/record"
+              }
+            }
+          ]
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
   }
 }

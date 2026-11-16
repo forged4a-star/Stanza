@@ -305,7 +305,7 @@ export async function listSongs(d: SqlDriver, q: SongQuery = {}): Promise<SongLi
     where.push(`instr(search_text, ?) > 0`);
     params.push(t);
   }
-  const order = q.sort === 'title' ? 'pinned DESC, title COLLATE NOCASE' : q.sort === 'opened' ? 'pinned DESC, opened_at DESC' : 'pinned DESC, updated_at DESC';
+  const order = q.sort === 'title' ? 'pinned DESC, title COLLATE NOCASE' : q.sort === 'opened' ? 'pinned DESC, opened_at DESC, rowid DESC' : 'pinned DESC, updated_at DESC, rowid DESC';
   const rows = await d.all<Row>(
     `SELECT id, title, status, pinned, folder_id, updated_at, opened_at, deleted_at, search_text,
        (SELECT group_concat(tag, ',') FROM song_tags WHERE song_id = songs.id) AS tags,
