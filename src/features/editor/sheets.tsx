@@ -10,6 +10,7 @@ import { DraggableList } from '../../ui/DraggableList';
 import { Button, Chip, Icon, IconButton, ListItem, Row, SectionTitle } from '../../ui/kit';
 import { font, radius, space, useTheme } from '../../ui/theme';
 import { startCapture } from '../capture/capture';
+import { openChordPicker } from '../chords/ChordPicker';
 
 // ------------------------------------------------------------------ line options
 
@@ -98,6 +99,7 @@ export async function sectionMenu(sectionId: string, onCompare: (a: number, b: n
   const names = sectionDisplayNames(doc.sections);
   const p = parallelSectionIndex(doc.sections, idx);
   const choice = await choose(names[idx], [
+    { label: sec.bars.length ? 'Add a bar of chords' : 'Add chords', value: 'chords' },
     { label: 'Change type', value: 'kind' },
     { label: 'Rename', value: 'rename' },
     { label: 'Duplicate', value: 'dup' },
@@ -108,6 +110,9 @@ export async function sectionMenu(sectionId: string, onCompare: (a: number, b: n
     { label: 'Delete section', value: 'delete', danger: true },
   ]);
   switch (choice) {
+    case 'chords':
+      openChordPicker({ kind: 'bar', sectionId, bar: null, slot: 0 });
+      break;
     case 'kind': {
       const k = await choose('Section type', SECTION_KINDS.map((x) => ({ label: SECTION_KIND_NAMES[x], value: x })));
       if (k) st.updateSection(sectionId, { kind: k as SectionKind });

@@ -16,6 +16,7 @@ import {
   sectionDisplayNames,
 } from '../core/model';
 import { newId } from '../core/util/id';
+import { keyName, keyPrefersFlats, parseKey, transposeChord } from '../core/music/theory';
 import { getDb } from '../db/client';
 import type { Db } from '../db/driver';
 import * as repo from '../db/repo';
@@ -97,6 +98,8 @@ interface SongStore {
   setBars: (sectionId: string, bars: ChordBar[]) => void;
   setMelody: (sectionId: string, melody: Note[]) => void;
 
+  /** move every chord (bars, lyric chords, key) by semitones */
+  transposeSong: (semitones: number) => void;
   requestFocus: (lineId: string, caret?: number) => void;
   setActiveLine: (lineId: string | null) => void;
 }
@@ -443,6 +446,21 @@ export const useSong = create<SongStore>((set, get) => {
 
     setBars: (sectionId, bars) => get().updateSection(sectionId, { bars }),
     setMelody: (sectionId, melody) => get().updateSection(sectionId, { melody }),
+
+    transposeSong: (semi) => {
+      const doc = get().doc;
+      if (!doc || !semi) return;
+      const key = parseKey(doc.song.key);
+      const newKey = key ? { tonic: (key.tonic + semi + 120) % 12, mode: key.mode } : null;
+      const flats = newKey ? keyPrefersFlats(newKey) : undefined;
+      const tr = (c: string) => (flats === undefined ? transposeChord(c, semi) : transposeChord(c, semi, flats));
+      for (const s of doc.sections) {
+        if (s.bars.length) get().setBars(s.id, s.bars.map((b) => ({ chords: b.chords.map(tr) })));
+        if (s.melody.length) get().setMelody(s.id, s.melody.map((n) => ({ ...n, pitch: n.pitch + semi })));
+        for (const l of s.lines) if (l.chords.length) get().setLineChords(l.id, l.chords.map((c) => ({ ...c, chord: tr(c.chord) })));
+      }
+      if (newKey) get().setMeta({ key: keyName(newKey) });
+    },
 
     requestFocus: (lineId, caret = -1) => set({ focus: { lineId, caret, nonce: ++focusNonce } }),
     setActiveLine: (lineId) => set({ activeLineId: lineId }),

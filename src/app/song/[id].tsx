@@ -14,6 +14,11 @@ import { ArrangeSheet, CompareSheet, LineSheet, sectionMenu } from '../../featur
 import { useSongAnalysis } from '../../features/editor/useSongAnalysis';
 import { caret, type LineDisplay } from '../../features/editor/LyricLine';
 import { SoundSheet } from '../../features/sound/SoundSheet';
+import { ChordGrid } from '../../features/chords/ChordGrid';
+import { ChordPicker, openChordPicker } from '../../features/chords/ChordPicker';
+import { ChordsSheet } from '../../features/chords/ChordsSheet';
+import { stopPlayer } from '../../features/chords/player';
+import { parseKey, romanNumeral } from '../../core/music/theory';
 import { WordSheet, type WordTarget } from '../../features/words/WordSheet';
 import { analyzeLine, wordAtOffset } from '../../core/phonetics/line';
 import { InboxSheet } from '../../features/inbox/InboxSheet';
@@ -26,7 +31,7 @@ import { choose, toast } from '../../ui/Dialogs';
 import { Icon, IconButton } from '../../ui/kit';
 import { font, radius, space, TAP, useTheme } from '../../ui/theme';
 
-type Sheet = null | 'song' | 'takes' | 'versions' | 'arrange' | 'inbox' | 'sound' | 'words';
+type Sheet = null | 'song' | 'takes' | 'versions' | 'arrange' | 'inbox' | 'sound' | 'words' | 'chords';
 
 export default function SongPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -63,17 +68,30 @@ export default function SongPage() {
   const analysis = useSongAnalysis(doc, { highlight: settings.highlight, modes: settings.soundModes, sensitivity: settings.sensitivity, scope: settings.scope });
   const names = useMemo(() => (doc ? sectionDisplayNames(doc.sections) : []), [doc]);
 
+  const songKey = doc?.song.key ?? null;
+  const chordLabel = useCallback(
+    (c: string) => {
+      const k = settings.romanChords ? parseKey(songKey) : null;
+      return k ? romanNumeral(c, k) : c;
+    },
+    [settings.romanChords, songKey]
+  );
   const display: LineDisplay = useMemo(
     () => ({
       showSyllables: settings.showSyllables,
       showStress: settings.showStress,
       showScheme: settings.showScheme,
-      showChords: false,
+      showChords: settings.showChords,
       onMenu: (lineId) => setLineMenu(lineId),
       onWord: (word, lineId) => word && setWordTarget({ word, lineId }),
+      onChordTap: (lineId, syl) => openChordPicker({ kind: 'syl', lineId, syl }),
+      chordLabel,
     }),
-    [settings.showSyllables, settings.showStress, settings.showScheme]
+    [settings.showSyllables, settings.showStress, settings.showScheme, settings.showChords, chordLabel]
   );
+
+  // stop the chord player when leaving the song
+  useEffect(() => () => stopPlayer(), []);
 
   const recordHere = useCallback(() => {
     const st = useSong.getState();
@@ -170,7 +188,17 @@ export default function SongPage() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={[styles.page, { paddingBottom: 140 + insets.bottom }]} keyboardShouldPersistTaps={Platform.OS === "web" ? "always" : "handled"} keyboardDismissMode="interactive" testID="lyric-page">
           {doc.sections.map((s, i) => (
-            <SectionBlock key={s.id} section={s} index={i} name={names[i]} analysis={analysis} display={display} onMenu={onSectionMenu} onRecord={recordSection} />
+            <SectionBlock
+              key={s.id}
+              section={s}
+              index={i}
+              name={names[i]}
+              analysis={analysis}
+              display={display}
+              onMenu={onSectionMenu}
+              onRecord={recordSection}
+              extra={s.bars.length ? <ChordGrid section={s} index={i} label={chordLabel} /> : null}
+            />
           ))}
           <Pressable onPress={addSection} style={[styles.addSection, { borderColor: t.border }]} accessibilityRole="button" testID="add-section">
             <Icon name="add" size={18} color={t.textDim} />
@@ -185,9 +213,10 @@ export default function SongPage() {
           <View style={[styles.tools, { backgroundColor: t.surface, borderColor: t.border }]}>
             <IconButton icon="albums-outline" label={`Takes (${recordingsCount})`} onPress={() => setSheet('takes')} testID="open-takes" />
             <IconButton icon="file-tray-outline" label={`Inbox (${inboxCount})`} onPress={() => setSheet('inbox')} testID="open-inbox" />
-            <IconButton icon="reorder-three" label="Arrange sections" onPress={() => setSheet('arrange')} testID="open-arrange" />
+
             <IconButton icon="book-outline" label="Words: rhymes, thesaurus, dictionary" onPress={openWords} testID="open-words" />
             <IconButton icon="color-palette-outline" label="Sound: highlighting and counts" active={settings.highlight} onPress={() => setSheet('sound')} testID="open-sound" />
+            <IconButton icon="musical-notes-outline" label="Chords: play, circle of fifths, ideas, shapes" onPress={() => setSheet('chords')} testID="open-chords" />
           </View>
           <Pressable
             onPress={recordHere}
@@ -212,6 +241,8 @@ export default function SongPage() {
       <CompareSheet pair={compare} onClose={() => setCompare(null)} />
       <SoundSheet visible={sheet === 'sound'} onClose={() => setSheet(null)} analysis={analysis} />
       <WordSheet target={wordTarget} onClose={() => setWordTarget(null)} />
+      <ChordsSheet visible={sheet === 'chords'} onClose={() => setSheet(null)} />
+      <ChordPicker />
     </View>
   );
 }

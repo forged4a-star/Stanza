@@ -252,7 +252,12 @@ export function romanNumeral(name: string, key: Key): string {
   if (c.bass !== null) {
     const iv = mod12(c.bass - c.root);
     const inv = c.quality.intervals.map(mod12).indexOf(iv);
-    bass = inv === 1 ? '⁶' : inv === 2 ? '⁶₄' : '/' + noteName(c.bass, keyPrefersFlats(key));
+    const seventh = c.quality.intervals.length === 4 && /7/.test(suffix);
+    if (seventh && inv >= 1 && inv <= 3) {
+      // seventh-chord inversions replace the 7: ⁶₅, ⁴₃, ⁴₂
+      suffix = suffix.replace('7', '');
+      bass = ['', '⁶₅', '⁴₃', '⁴₂'][inv];
+    } else bass = inv === 1 ? '⁶' : inv === 2 ? '⁶₄' : '/' + noteName(c.bass, keyPrefersFlats(key));
   }
   return prefix + numeral + suffix + bass;
 }

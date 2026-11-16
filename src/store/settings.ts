@@ -34,6 +34,17 @@ export interface Settings {
   instrument: 'piano' | 'acoustic' | 'electric' | 'pad';
   /** prefer flats when spelling chords without a key */
   preferFlats: boolean;
+  /** show a chord slot over every syllable (lines with chords always show theirs) */
+  showChords: boolean;
+  /** show chords as Roman numerals (needs a song key) */
+  romanChords: boolean;
+  /** chord player pattern and metronome */
+  pattern: import('../core/audio/patterns').PatternId;
+  metronome: boolean;
+  /** chord suggestion extras */
+  suggestBorrowed: boolean;
+  suggestSecondary: boolean;
+  suggestPivots: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -53,6 +64,13 @@ export const DEFAULT_SETTINGS: Settings = {
   vocalHigh: 72,
   instrument: 'piano',
   preferFlats: false,
+  showChords: false,
+  romanChords: false,
+  pattern: 'strum-folk',
+  metronome: false,
+  suggestBorrowed: false,
+  suggestSecondary: false,
+  suggestPivots: false,
 };
 
 interface SettingsStore extends Settings {

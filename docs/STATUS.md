@@ -121,3 +121,47 @@ that only exists natively is marked *not run on a device*.
 - Stress for one-syllable words is guessed from word class (function words
   weak, content words strong); the dictionary has no sentence stress.
 - Slant/near rhyme quality is heuristic; tuned on test cases, not on a corpus.
+
+## Phase 3 — chords, player, circle of fifths, suggestions
+
+### Works (tested)
+- **Chord blocks per section** on a bar grid (4 bars per row, 1–4 chords per
+  bar; tap to change, long-press a bar to split/duplicate/delete, + to add).
+- **Chords above specific syllables** ("Place chords over lyrics" shows a tap
+  target over each syllable; lines that have chords always show them).
+- **Chord picker**: in-key chords, "what comes next" ideas, any root × 20
+  qualities (7ths, 9ths, 11ths, 13ths, sus, add, dim, aug, power, 6/9 …),
+  slash bass; plays every choice; live guitar + piano diagram.
+- **Player**: plays a section or the whole song (chords + melody once Phase 4
+  adds it), loop, tempo ±, **tap tempo**, **metronome**, time signature,
+  sounds **piano / acoustic strum / electric / pad** (synthesised, no samples),
+  patterns: whole bar, on the beat, two strums, two arpeggios, bass + chord.
+  Look-ahead scheduling on the audio clock; the playhead lights the sounding
+  bar. Each section has its own loop button.
+- **Guitar and piano voicing diagrams**: guitar shapes are searched and scored
+  for playability (open shapes first: C x32010, G 320003, D/F# 200232, F
+  133211, Bm x24432 …), any **capo**; piano keyboard highlighting.
+- **Transpose** the whole song (bars, lyric chords, melody, key), **Roman
+  numeral view** (with inversion figures ⁶, ⁶₄, ⁶₅, ⁴₃, ⁴₂), slash chords.
+- **Circle of fifths**: outer ring majors, inner ring relative minors; the
+  key's diatonic chords light up with numerals (vii° in the centre); tap to
+  hear, long-press (or Add) to append to the section; set the song key.
+- **Next-chord suggestions** ranked by how common the move is (corpus-style
+  transition weights), labelled tension / release / lift / darken, with
+  toggles for **borrowed chords**, **secondary dominants** and **pivot chords**
+  for key changes (to the dominant, subdominant, relative and up-a-step keys).
+- **Library** of 19 classic progressions and cadences, transposed to the
+  song's key; tap to hear, + to add.
+- **Chord detector**: listens to the mic, names the chord (incl. slash chords)
+  with alternatives; suppresses overtones. Unit-tested on synthetic chords;
+  the mic path runs in the browser.
+- ChordPro / PDF chord chart / MIDI export include all of this.
+
+### Not run on a device
+- Audio output and mic input on Android go through react-native-audio-api
+  (needs a development build). Verified on web only.
+
+### Limitations
+- Synth sounds are simple physical/additive models, not sampled instruments.
+- The chord detector is tuned on synthetic audio; real guitars in noisy rooms
+  will be less reliable (alternatives are shown to pick from).

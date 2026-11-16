@@ -168,6 +168,7 @@ async function main() {
   });
 
   await check('arrange: drag a section to a new position', async () => {
+    await id('open-song-sheet').click();
     await id('open-arrange').click();
     await id('arrange-sheet').waitFor();
     await page.waitForTimeout(500); // let the sheet finish sliding up

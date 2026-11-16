@@ -21,5 +21,6 @@ describe('theory', () => {
     expect(['C', 'Am', 'F', 'G7', 'Bb', 'D7', 'Fm', 'Bdim', 'C/E'].map((c) => romanNumeral(c, C))).toEqual(['I', 'vi', 'IV', 'V7', 'bVII', 'II7', 'iv', 'vii°', 'I⁶']);
     expect(['Am', 'C', 'E7', 'G'].map((c) => romanNumeral(c, parseKey('Am')!))).toEqual(['i', 'III', 'V7', 'VII']);
     expect(keyName(parseKey('Bb minor')!)).toBe('Bbm');
+    expect(['G7/B', 'Em7/B', 'Dm7/C', 'G/D'].map((c) => romanNumeral(c, C))).toEqual(['V⁶₅', 'iii⁴₃', 'ii⁴₂', 'V⁶₄']);
   });
 });

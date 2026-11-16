@@ -153,7 +153,7 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
             />
             <ListItem icon="time-outline" title="Versions" subtitle="Snapshots, compare, restore" onPress={() => onOpen('versions')} testID="open-versions" />
             <ListItem icon="albums-outline" title="Takes" subtitle="Recordings in this song" onPress={() => onOpen('takes')} />
-            <ListItem icon="reorder-three" title="Arrange sections" onPress={() => onOpen('arrange')} />
+            <ListItem icon="reorder-three" title="Arrange sections" onPress={() => onOpen('arrange')} testID="open-arrange" />
             <ListItem icon="git-compare-outline" title="Compare sections" subtitle="Side by side, with syllables and stress" onPress={() => onOpen('compare')} testID="open-compare" />
             <ListItem
               icon="easel-outline"

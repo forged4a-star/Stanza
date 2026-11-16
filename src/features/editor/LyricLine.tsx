@@ -170,7 +170,7 @@ function LyricLineImpl({ line, meta, display, placeholder, testID }: Props) {
         accessibilityLabel="Lyric line"
       />
     );
-  } else if (display.showStress || (display.showChords && (line.chords.length || display.onChordTap))) {
+  } else if (display.showStress || line.chords.length > 0 || (display.showChords && line.text.trim())) {
     body = <SyllableGrid line={line} meta={meta} display={display} t={t} />;
   } else {
     body = (
@@ -280,8 +280,8 @@ function SyllableGrid({ line, meta, display, t }: { line: Line; meta: LineMeta |
       const chord = chordAt.get(si);
       sylViews.push(
         <View key={si} style={styles.sylCol}>
-          {display.showChords && (
-            <Pressable onPress={display.onChordTap ? () => display.onChordTap!(line.id, si) : undefined} hitSlop={4} style={styles.chordCell} accessibilityLabel={chord ? `Chord ${chord}` : 'Add chord here'}>
+          {(display.showChords || line.chords.length > 0) && (
+            <Pressable onPress={display.onChordTap ? () => display.onChordTap!(line.id, si) : undefined} hitSlop={6} style={styles.chordCell} accessibilityRole="button" accessibilityLabel={chord ? `Chord ${chord}` : 'Add chord here'}>
               <Text style={[styles.chord, { color: t.chord }]} numberOfLines={1}>
                 {chord ? (display.chordLabel ? display.chordLabel(chord) : chord) : ' '}
               </Text>
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', paddingVertical: 2 },
   word: { flexDirection: 'row' },
   sylCol: { alignItems: 'flex-start' },
-  chordCell: { minHeight: 18, minWidth: 14, justifyContent: 'flex-end' },
+  chordCell: { minHeight: 22, minWidth: 10, alignSelf: 'stretch', justifyContent: 'flex-end' },
   chord: { fontSize: font.small, fontWeight: '700' },
   stressRow: { height: 9, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' },
   stressDot: { borderRadius: 4 },
