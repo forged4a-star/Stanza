@@ -231,6 +231,7 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
               <Button compact title="+" onPress={() => setTranspose(Math.min(11, transpose + 1))} />
             </Row>
             <ToggleRow label="Roman numerals on the chart" value={roman} onChange={setRoman} />
+            <Button title="Chord sheet as text (.txt)" icon="document-text-outline" onPress={() => run('chordsheet')} busy={busy === 'chordsheet'} testID="export-chordsheet" />
             <Button title="PDF chord chart" icon="musical-notes-outline" onPress={() => run('pdf-chords')} busy={busy === 'pdf-chords'} />
             <Button title="ChordPro (.cho)" icon="code-slash-outline" onPress={() => run('chordpro')} busy={busy === 'chordpro'} testID="export-chordpro" />
             <Button title="MIDI (chords + melody)" icon="musical-note-outline" onPress={() => run('midi')} busy={busy === 'midi'} />

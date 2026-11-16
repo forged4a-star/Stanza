@@ -311,5 +311,13 @@ that only exists natively is marked *not run on a device*.
   before it sorts into sections. Layout step is unit-tested; the native
   recognition has **not been compiled or run**. If the native module fails to
   load, the app shows a message instead of crashing. Android only.
+- **Chord sheet mode**: the ♪ button in the top bar switches the lyric page to
+  a printed-style chord sheet: chords above the words they belong to, section
+  bar grids, tap a word to put a chord on it (long-press a longer word to pick
+  the syllable), tap a chord to change/remove it. Transpose, capo, Roman
+  numerals, text size, and "Share as text" (monospace chord-over-lyric text
+  that the lyrics importer reads back). Lyrics aren't editable in this mode.
+  Tested in the browser. Also fixed: switching back from the sheet no longer
+  reopens the keyboard.
 - **Faster updates (OTA)**: waiting on an Expo account and token.
 - **Fixes and requests from use**: waiting on your list.

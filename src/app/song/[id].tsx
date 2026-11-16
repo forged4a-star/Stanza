@@ -16,6 +16,7 @@ import { useSongAnalysis } from '../../features/editor/useSongAnalysis';
 import { caret, type LineDisplay } from '../../features/editor/LyricLine';
 import { SoundSheet } from '../../features/sound/SoundSheet';
 import { ChordGrid } from '../../features/chords/ChordGrid';
+import { ChordSheetView } from '../../features/chords/ChordSheetView';
 import { prepareFor } from '../../audio/engine';
 import { ChordPicker, openChordPicker } from '../../features/chords/ChordPicker';
 import { ChordsSheet } from '../../features/chords/ChordsSheet';
@@ -232,6 +233,18 @@ export default function SongPage() {
         <View style={styles.saveDot} accessibilityLabel={saveState === 'saved' ? 'All changes saved' : saveState === 'saving' ? 'Saving' : 'Save failed, retrying'} testID={`save-${saveState}`}>
           <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: saveState === 'saved' ? t.ok : saveState === 'saving' ? t.textFaint : t.danger, opacity: saveState === 'saved' ? 0.6 : 1 }} />
         </View>
+        <IconButton
+          icon="musical-notes"
+          label={settings.chordSheet ? 'Back to the lyric editor' : 'Chord sheet view'}
+          active={settings.chordSheet}
+          onPress={() => {
+            Keyboard.dismiss();
+            // a stale "focus this line" request would reopen the editor with the keyboard
+            useSong.setState({ focus: null });
+            settings.set({ chordSheet: !settings.chordSheet });
+          }}
+          testID="toggle-sheet"
+        />
         <IconButton icon="ellipsis-horizontal" label="Song options" onPress={() => setSheet('song')} testID="open-song-sheet" />
       </View>
 
@@ -251,7 +264,10 @@ export default function SongPage() {
           onScroll={(e) => (scrollY.current = e.nativeEvent.contentOffset.y)}
           scrollEventThrottle={32}
           contentContainerStyle={[styles.page, { paddingBottom: 140 + insets.bottom + (Platform.OS === 'ios' ? 0 : kbCover) }]} keyboardShouldPersistTaps={Platform.OS === "web" ? "always" : "handled"} keyboardDismissMode="interactive" testID="lyric-page">
-          {doc.sections.map((s, i) => (
+          {settings.chordSheet ? (
+            <ChordSheetView doc={doc} names={names} label={chordLabel} />
+          ) : (
+            doc.sections.map((s, i) => (
             <SectionBlock
               key={s.id}
               section={s}
@@ -270,11 +286,12 @@ export default function SongPage() {
                 ) : null
               }
             />
-          ))}
-          <Pressable onPress={addSection} style={[styles.addSection, { borderColor: t.border }]} accessibilityRole="button" testID="add-section">
+            ))
+          )}
+          {!settings.chordSheet && <Pressable onPress={addSection} style={[styles.addSection, { borderColor: t.border }]} accessibilityRole="button" testID="add-section">
             <Icon name="add" size={18} color={t.textDim} />
             <Text style={{ color: t.textDim, fontSize: font.body }}>Section</Text>
-          </Pressable>
+          </Pressable>}
         </ScrollView>
       </KeyboardAvoidingView>
 

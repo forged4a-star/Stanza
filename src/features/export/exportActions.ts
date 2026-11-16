@@ -1,5 +1,6 @@
 import type { SongDoc } from '../../core/model';
 import { chordChartHtml, lyricSheetHtml, safeFileName, toChordPro, toMidi, toPlainText, type ExportOptions } from '../../core/export/formats';
+import { chordSheetText } from '../../core/export/chordSheet';
 import { buildProjectZip, extForMime, readProjectZip } from '../../core/export/projectZip';
 import { readAudio, writeAudio } from '../../audio/storage';
 import { getDb } from '../../db/client';
@@ -7,7 +8,7 @@ import * as repo from '../../db/repo';
 import { pickFile, shareFile, sharePdf } from '../../platform/share';
 import { flushSaves } from '../../store/song';
 
-export type ExportKind = 'txt' | 'pdf-lyrics' | 'pdf-chords' | 'chordpro' | 'midi' | 'zip';
+export type ExportKind = 'txt' | 'chordsheet' | 'pdf-lyrics' | 'pdf-chords' | 'chordpro' | 'midi' | 'zip';
 
 export async function exportSong(doc: SongDoc, kind: ExportKind, opts: ExportOptions = {}): Promise<void> {
   await flushSaves();
@@ -15,6 +16,8 @@ export async function exportSong(doc: SongDoc, kind: ExportKind, opts: ExportOpt
   switch (kind) {
     case 'txt':
       return shareFile(`${base}.txt`, 'text/plain', toPlainText(doc));
+    case 'chordsheet':
+      return shareFile(`${base} - chord sheet.txt`, 'text/plain', chordSheetText(doc, { transpose: opts.transpose, roman: opts.roman }));
     case 'pdf-lyrics':
       return sharePdf(lyricSheetHtml(doc), `${base}.pdf`);
     case 'pdf-chords':

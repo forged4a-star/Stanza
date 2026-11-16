@@ -41,6 +41,10 @@ export interface Settings {
   /** chord player pattern and metronome */
   pattern: import('../core/audio/patterns').PatternId;
   metronome: boolean;
+  /** show the song as a chord sheet (chords over words) instead of the editor */
+  chordSheet: boolean;
+  /** lyric size in the chord sheet */
+  sheetSize: number;
   /** chord suggestion extras */
   suggestBorrowed: boolean;
   suggestSecondary: boolean;
@@ -68,6 +72,8 @@ export const DEFAULT_SETTINGS: Settings = {
   romanChords: false,
   pattern: 'strum-folk',
   metronome: false,
+  chordSheet: false,
+  sheetSize: 20,
   suggestBorrowed: false,
   suggestSecondary: false,
   suggestPivots: false,
