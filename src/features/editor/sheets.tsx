@@ -11,6 +11,7 @@ import { Button, Chip, Icon, IconButton, ListItem, Row, SectionTitle } from '../
 import { font, radius, space, useTheme } from '../../ui/theme';
 import { startCapture } from '../capture/capture';
 import { openChordPicker } from '../chords/ChordPicker';
+import { openMelody } from '../melody/MelodyRoll';
 
 // ------------------------------------------------------------------ line options
 
@@ -100,6 +101,7 @@ export async function sectionMenu(sectionId: string, onCompare: (a: number, b: n
   const p = parallelSectionIndex(doc.sections, idx);
   const choice = await choose(names[idx], [
     { label: sec.bars.length ? 'Add a bar of chords' : 'Add chords', value: 'chords' },
+    { label: 'Melody (piano roll)', value: 'melody' },
     { label: 'Change type', value: 'kind' },
     { label: 'Rename', value: 'rename' },
     { label: 'Duplicate', value: 'dup' },
@@ -112,6 +114,9 @@ export async function sectionMenu(sectionId: string, onCompare: (a: number, b: n
   switch (choice) {
     case 'chords':
       openChordPicker({ kind: 'bar', sectionId, bar: null, slot: 0 });
+      break;
+    case 'melody':
+      openMelody(sectionId, true);
       break;
     case 'kind': {
       const k = await choose('Section type', SECTION_KINDS.map((x) => ({ label: SECTION_KIND_NAMES[x], value: x })));

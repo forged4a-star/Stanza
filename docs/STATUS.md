@@ -165,3 +165,39 @@ that only exists natively is marked *not run on a device*.
 - Synth sounds are simple physical/additive models, not sampled instruments.
 - The chord detector is tuned on synthetic audio; real guitars in noisy rooms
   will be less reliable (alternatives are shown to pick from).
+
+## Phase 4 — piano roll, hum-to-MIDI, prosody and singability
+
+### Works (tested)
+- **Mini piano roll per section** (section menu → Melody): two octaves around
+  your range, sixteenth-note grid, bar lines, octave shift. Tap to add, tap to
+  select, drag the selected note to move it, up/down/shorter/longer/delete.
+- **Scale lock on by default** (snaps taps, drags and up/down steps to the
+  song's key; out-of-key rows are shaded).
+- **Chord tones tinted** under each chord of the section's bar grid.
+- **Plays over the section's chords** (and the whole-song player includes all
+  melodies).
+- **Hum-to-MIDI**: hum into the mic, stop, and the take is pitch-tracked
+  (YIN), segmented into notes, quantised to the tempo grid and scale-locked.
+  Verified end to end in Chromium with a generated hummed phrase played as the
+  microphone (C4 E4 G4 E4 → C4 E4 G4 E4).
+- **Notes linked to lyric syllables**: new notes take the next syllable in
+  order; "link in order" re-links a whole section; any note can be pointed at a
+  specific syllable or left free (melisma). Notes show their syllable; links
+  follow the line, so edits to the words show up on the notes.
+- **Vocal range guard**: set your range by hand or "find it by singing"; notes
+  outside it turn red and are listed.
+- **Prosody check**: stressed syllables on weak metric positions (off-beats,
+  sixteenths, with 4/4, 3/4, 6/8, 12/8 weights), and weak syllables hogging a
+  strong beat before a stressed one.
+- **Singability check**: long notes on closed vowels (ee, ih, oo, uh, er),
+  worse when high in your range; consonant pile-ups between syllables that
+  don't fit the time available at the song's tempo.
+- Checks are listed in Sound → Checks; tapping one opens the roll on that note.
+- The chord detector now also passes an end-to-end test with a generated
+  G-major chord played as the microphone.
+
+### Limitations
+- Links are by position (line + syllable number). Inserting a word early in a
+  line shifts later links by one; "link in order" fixes a section in one tap.
+- One melody line per section (monophonic), as is natural for a vocal line.

@@ -18,6 +18,7 @@ import { ChordGrid } from '../../features/chords/ChordGrid';
 import { ChordPicker, openChordPicker } from '../../features/chords/ChordPicker';
 import { ChordsSheet } from '../../features/chords/ChordsSheet';
 import { stopPlayer } from '../../features/chords/player';
+import { MelodyChip, MelodyRoll, useMelodyUI } from '../../features/melody/MelodyRoll';
 import { parseKey, romanNumeral } from '../../core/music/theory';
 import { WordSheet, type WordTarget } from '../../features/words/WordSheet';
 import { analyzeLine, wordAtOffset } from '../../core/phonetics/line';
@@ -47,6 +48,7 @@ export default function SongPage() {
   const [compare, setCompare] = useState<[number, number] | null>(null);
   const [inboxCount, setInboxCount] = useState(0);
   const [wordTarget, setWordTarget] = useState<WordTarget | null>(null);
+  const melodyOpen = useMelodyUI((s) => s.open);
 
   // (re)open on focus: this page may be revealed again by going back to it
   useFocusEffect(
@@ -197,7 +199,14 @@ export default function SongPage() {
               display={display}
               onMenu={onSectionMenu}
               onRecord={recordSection}
-              extra={s.bars.length ? <ChordGrid section={s} index={i} label={chordLabel} /> : null}
+              extra={
+                s.bars.length || s.melody.length || melodyOpen[s.id] ? (
+                  <>
+                    {s.bars.length > 0 && <ChordGrid section={s} index={i} label={chordLabel} />}
+                    {melodyOpen[s.id] ? <MelodyRoll section={s} index={i} /> : <MelodyChip section={s} />}
+                  </>
+                ) : null
+              }
             />
           ))}
           <Pressable onPress={addSection} style={[styles.addSection, { borderColor: t.border }]} accessibilityRole="button" testID="add-section">

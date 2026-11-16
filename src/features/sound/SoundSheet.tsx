@@ -14,6 +14,7 @@ import { BottomSheet } from '../../ui/BottomSheet';
 import { Chip, Row, SectionTitle, Segmented, Slider, ToggleRow } from '../../ui/kit';
 import { font, radius, space, useTheme } from '../../ui/theme';
 import type { SongAnalysis } from '../editor/useSongAnalysis';
+import { ChecksPanel } from '../melody/ChecksPanel';
 
 const MODES: { mode: SoundMode; label: string; hint: string }[] = [
   { mode: 'perfect', label: 'Perfect rhyme', hint: 'night / light' },
@@ -25,7 +26,7 @@ const MODES: { mode: SoundMode; label: string; hint: string }[] = [
 ];
 
 export function SoundSheet({ visible, onClose, analysis }: { visible: boolean; onClose: () => void; analysis: SongAnalysis | null }) {
-  const [tab, setTab] = useState<'highlight' | 'counts'>('highlight');
+  const [tab, setTab] = useState<'highlight' | 'counts' | 'checks'>('highlight');
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Sound" height={0.75} light testID="sound-sheet">
       <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
@@ -35,11 +36,14 @@ export function SoundSheet({ visible, onClose, analysis }: { visible: boolean; o
           options={[
             { value: 'highlight', label: 'Highlight' },
             { value: 'counts', label: 'Counts' },
+            { value: 'checks', label: 'Checks' },
           ]}
           testID="sound-tabs"
         />
       </View>
-      <ScrollView contentContainerStyle={{ paddingBottom: space.xxl }}>{tab === 'highlight' ? <HighlightSettings /> : <Counts analysis={analysis} />}</ScrollView>
+      <ScrollView contentContainerStyle={{ paddingBottom: space.xxl }}>
+        {tab === 'highlight' ? <HighlightSettings /> : tab === 'counts' ? <Counts analysis={analysis} /> : <ChecksPanel onJump={onClose} />}
+      </ScrollView>
     </BottomSheet>
   );
 }
