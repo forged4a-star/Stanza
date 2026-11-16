@@ -15,6 +15,7 @@ import { choose, toast } from '../../ui/Dialogs';
 import { Button, Chip, Field, IconButton, Row } from '../../ui/kit';
 import { font, radius, space, useTheme } from '../../ui/theme';
 import { openSong } from '../nav/openSong';
+import { lyricsFromImage, ocrAvailable } from './ocr';
 
 const WHY: Record<ImportedSection['why'], string> = {
   header: 'from its heading',
@@ -29,6 +30,7 @@ export function ImportSheet({ visible, onClose, mode }: { visible: boolean; onCl
   const [title, setTitle] = useState('');
   const [sections, setSections] = useState<ImportedSection[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [reading, setReading] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -106,6 +108,23 @@ export function ImportSheet({ visible, onClose, mode }: { visible: boolean; onCl
       {!sections ? (
         <View style={{ flex: 1, paddingHorizontal: space.lg, paddingBottom: space.lg, gap: space.md }}>
           <Text style={{ color: t.textDim, fontSize: font.small }}>Paste lyrics from anywhere. Sections are worked out from headings, blank lines and repeats; chord lines are kept above their words. You confirm before anything is saved.</Text>
+          {ocrAvailable() && (
+            <Button
+              title={reading ? 'Reading the image…' : 'From a screenshot or photo'}
+              icon="image-outline"
+              busy={reading}
+              onPress={async () => {
+                setReading(true);
+                const r = await lyricsFromImage();
+                setReading(false);
+                if (r.ok) {
+                  setText(r.text);
+                  toast('Text read. Fix anything that looks wrong, then sort it.');
+                } else if (!r.cancelled) toast(r.reason);
+              }}
+              testID="import-screenshot"
+            />
+          )}
           <TextInput
             value={text}
             onChangeText={setText}

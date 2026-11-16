@@ -301,3 +301,15 @@ that only exists natively is marked *not run on a device*.
 - **Builds**: arm64-only by default (manual run can build all chips), Gradle and
   ccache caching, newer pushes cancel running builds, docs/tests/server changes
   don't trigger a build.
+
+## 1.1 (in progress, on branch `v1.1`; not built)
+
+- **Screenshot import**: Import lyrics → "From a screenshot or photo". Picks an
+  image, reads it on the device (Google ML Kit, model bundled so it works
+  offline), rebuilds blank lines between sections from the vertical spacing,
+  drops status-bar clutter, and fills the paste box so you can fix mistakes
+  before it sorts into sections. Layout step is unit-tested; the native
+  recognition has **not been compiled or run**. If the native module fails to
+  load, the app shows a message instead of crashing. Android only.
+- **Faster updates (OTA)**: waiting on an Expo account and token.
+- **Fixes and requests from use**: waiting on your list.
