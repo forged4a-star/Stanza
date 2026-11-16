@@ -55,11 +55,11 @@ const shots = process.argv[2] || null;
     await id('lyric-page').waitFor({ timeout: 30000 });
     await id('song-title').fill('Shape Song');
     await id('line-0-0-text').click();
-    await id('line-0-0-input').pressSequentially('I walked along the river in the rain tonight', { delay: 2 });
+    await id('section-0-input').pressSequentially('I walked along the river in the rain tonight', { delay: 2 });
     await page.keyboard.press('Enter');
-    await id('line-0-1-input').pressSequentially('and every window on the street was closed', { delay: 2 });
+    await id('section-0-input').pressSequentially('and every window on the street was closed', { delay: 2 });
     await addSection('Chorus');
-    await id('line-1-0-input').pressSequentially('you set me free', { delay: 2 });
+    await id('section-1-input').pressSequentially('you set me free', { delay: 2 });
     await settle();
 
     await check('feeling map: name each section’s feeling, see the arc', async () => {
@@ -149,14 +149,14 @@ const shots = process.argv[2] || null;
       await page.getByText(/Live · .*(Alice.*Bob|Bob.*Alice)/).waitFor({ timeout: 10000 });
       // Alice adds a line; Bob sees it
       await id('line-1-0-text').click();
-      await id('line-1-0-input').press('End');
+      await id('section-1-input').press('End');
       await page.keyboard.press('Enter');
-      await id('line-1-1-input').pressSequentially('and the morning lets me go', { delay: 5 });
+      await id('section-1-input').pressSequentially('and the morning lets me go', { delay: 5 });
       await pb.getByText('and the morning lets me go').waitFor({ timeout: 10000 });
       // Bob edits Alice's verse; Alice sees it
       await id('line-0-1-text', pb).click();
-      await id('line-0-1-input', pb).press('ControlOrMeta+End');
-      await id('line-0-1-input', pb).pressSequentially(' tight', { delay: 5 });
+      await id('section-0-input', pb).press('ControlOrMeta+End');
+      await id('section-0-input', pb).pressSequentially(' tight', { delay: 5 });
       await settle(pb);
       await page.getByText('and every window on the street was closed tight').waitFor({ timeout: 10000 });
       if (shots) await pb.screenshot({ path: `${shots}/p5-cowrite-bob.png` });

@@ -7,6 +7,7 @@ import { SONG_STATUSES, type Folder, type SongStatus } from '../core/model';
 import { getDb } from '../db/client';
 import * as repo from '../db/repo';
 import { importProject } from '../features/export/exportActions';
+import { ImportSheet } from '../features/import/ImportSheet';
 import { deleteAudio } from '../audio/storage';
 import { askText, choose, confirm, toast } from '../ui/Dialogs';
 import { Chip, Empty, Icon, IconButton, Row } from '../ui/kit';
@@ -32,6 +33,7 @@ export default function Library() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [tags, setTags] = useState<{ tag: string; count: number }[]>([]);
   const [counts, setCounts] = useState({ inbox: 0, scraps: 0 });
+  const [importing, setImporting] = useState(false);
 
   const load = useCallback(async () => {
     const db = await getDb();
@@ -196,6 +198,7 @@ export default function Library() {
           </Pressable>
         )}
       />
+      <ImportSheet visible={importing} onClose={() => setImporting(false)} mode="new" />
       <View style={[styles.bottom, { paddingBottom: insets.bottom + space.md }]} pointerEvents="box-none">
         <Pressable onPress={() => setTrash(!trash)} style={[styles.pill, { backgroundColor: t.surface, borderColor: t.border }]} accessibilityRole="button" testID="toggle-trash">
           <Icon name={trash ? 'musical-notes-outline' : 'trash-outline'} size={18} color={t.textDim} />
@@ -203,6 +206,12 @@ export default function Library() {
         </Pressable>
         <Pressable
           onPress={async () => {
+            const v = await choose('Import', [
+              { label: 'Paste lyrics', value: 'text' },
+              { label: 'Project ZIP (.stanza.zip)', value: 'zip' },
+            ]);
+            if (v === 'text') setImporting(true);
+            if (v !== 'zip') return;
             try {
               const id = await importProject();
               if (id) {
@@ -213,6 +222,8 @@ export default function Library() {
               toast(String((e as Error).message ?? e));
             }
           }}
+          testID="import"
+
           style={[styles.pill, { backgroundColor: t.surface, borderColor: t.border }]}
           accessibilityRole="button"
         >

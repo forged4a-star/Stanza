@@ -16,7 +16,7 @@ import { exportSong, type ExportKind } from '../export/exportActions';
 import { Share, Platform } from 'react-native';
 import { roomFor, shareSong, stopSharing, useCollab } from '../../collab/collab';
 
-export type SongSheetAction = 'versions' | 'takes' | 'arrange' | 'sound' | 'compare' | 'shape';
+export type SongSheetAction = 'versions' | 'takes' | 'arrange' | 'sound' | 'compare' | 'shape' | 'import';
 
 export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onClose: () => void; onOpen: (a: SongSheetAction) => void }) {
   const t = useTheme();
@@ -157,6 +157,7 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
             <ListItem icon="pulse-outline" title="Song shape" subtitle="Feeling map, verse/chorus contrast, questions" onPress={() => onOpen('shape')} testID="open-shape" />
             <ListItem icon="time-outline" title="Versions" subtitle="Snapshots, compare, restore" onPress={() => onOpen('versions')} testID="open-versions" />
             <ListItem icon="albums-outline" title="Takes" subtitle="Recordings in this song" onPress={() => onOpen('takes')} />
+            <ListItem icon="clipboard-outline" title="Import lyrics" subtitle="Paste text; sections are labelled for you to confirm" onPress={() => onOpen('import')} testID="open-import" />
             <ListItem icon="reorder-three" title="Arrange sections" onPress={() => onOpen('arrange')} testID="open-arrange" />
             <ListItem icon="git-compare-outline" title="Compare sections" subtitle="Side by side, with syllables and stress" onPress={() => onOpen('compare')} testID="open-compare" />
             <ListItem

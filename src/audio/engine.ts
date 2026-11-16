@@ -16,9 +16,19 @@ const cache = new Map<string, AudioBuffer>();
 function context(): AudioContext {
   if (!ctx) {
     ctx = new AudioContext();
+    // Headroom first (a six-string chord sums to several times one note),
+    // then a soft limiter so peaks round off instead of clipping harshly.
     master = ctx.createGain();
-    master.gain.value = 0.8;
-    master.connect(ctx.destination);
+    master.gain.value = 0.3;
+    const limiter = ctx.createWaveShaper();
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < curve.length; i++) {
+      const x = (i / (curve.length - 1)) * 2 - 1;
+      curve[i] = Math.tanh(1.5 * x) / Math.tanh(1.5);
+    }
+    limiter.curve = curve;
+    master.connect(limiter);
+    limiter.connect(ctx.destination);
   }
   if (ctx.state === 'suspended') void ctx.resume();
   return ctx;
@@ -33,7 +43,7 @@ function toBuffer(data: Float32Array): AudioBuffer {
 
 /** note buffers are cached per instrument, pitch and (bucketed) length */
 function noteBuffer(inst: Instrument, midi: number, dur: number): AudioBuffer {
-  const d = Math.min(6, Math.max(0.25, Math.ceil(dur * 4) / 4));
+  const d = Math.min(3, Math.max(0.25, Math.ceil(dur * 4) / 4));
   const key = `${inst}:${midi}:${d}`;
   let b = cache.get(key);
   if (!b) {
@@ -54,9 +64,15 @@ function clickBuffer(accent: boolean): AudioBuffer {
   return b;
 }
 
-const live = new Set<{ stop: (t?: number) => void }>();
+interface Voice {
+  stop: (t?: number) => void;
+  fade: (t: number) => void;
+}
+const live = new Set<Voice>();
+/** the note currently ringing at each pitch, so a re-struck string replaces it instead of stacking */
+const ringing = new Map<number, Voice>();
 
-function play(buffer: AudioBuffer, when: number, vel = 1) {
+function play(buffer: AudioBuffer, when: number, vel = 1, pitch?: number) {
   const c = context();
   const src = c.createBufferSource();
   src.buffer = buffer;
@@ -64,10 +80,29 @@ function play(buffer: AudioBuffer, when: number, vel = 1) {
   g.gain.value = vel;
   src.connect(g);
   g.connect(master!);
-  src.start(Math.max(when, c.currentTime));
-  const handle = { stop: (t?: number) => src.stop(t ?? c.currentTime) };
+  const at = Math.max(when, c.currentTime);
+  src.start(at);
+  const handle: Voice = {
+    stop: (t?: number) => src.stop(t ?? c.currentTime),
+    fade: (t: number) => {
+      try {
+        g.gain.setValueAtTime(vel, t);
+        g.gain.linearRampToValueAtTime(0, t + 0.03);
+        src.stop(t + 0.05);
+      } catch {
+        // already ended
+      }
+    },
+  };
+  if (pitch !== undefined) {
+    ringing.get(pitch)?.fade(at);
+    ringing.set(pitch, handle);
+  }
   live.add(handle);
-  src.onended = () => live.delete(handle);
+  src.onended = () => {
+    live.delete(handle);
+    if (pitch !== undefined && ringing.get(pitch) === handle) ringing.delete(pitch);
+  };
   return handle;
 }
 
@@ -80,12 +115,12 @@ export function previewChord(name: string, inst: Instrument = 'piano', capo = 0)
   const notes = chordNotes(name, inst, capo);
   const t = now() + 0.02;
   const gap = inst === 'piano' || inst === 'pad' ? 0.003 : 0.016;
-  notes.forEach((m, i) => play(noteBuffer(inst, m, 1.5), t + i * gap, 0.7));
+  notes.forEach((m, i) => play(noteBuffer(inst, m, 1.5), t + i * gap, 0.7, m));
 }
 
 /** Hear single notes (melody preview). */
 export function playNote(midi: number, dur = 0.4, inst: Instrument = 'piano', at = 0) {
-  play(noteBuffer(inst, midi, dur), (at || now()) + 0.01, 0.8);
+  play(noteBuffer(inst, midi, dur), (at || now()) + 0.01, 0.9, 1000 + midi);
 }
 
 export function stopAll() {
@@ -97,6 +132,7 @@ export function stopAll() {
     }
   }
   live.clear();
+  ringing.clear();
 }
 
 // ------------------------------------------------------------------ transport
@@ -138,6 +174,13 @@ export function startTransport(bars: ChordBar[], opts: TransportOptions): Schedu
   if (!schedule.length && !opts.extra?.length) return null;
   const length = schedule.length || Math.max(...(opts.extra ?? []).map((e) => e.time + e.dur));
   const c = context();
+  // render every sound up front: synthesising mid-playback stalls the scheduler and garbles timing
+  for (const e of schedule.notes) noteBuffer(opts.instrument, e.midi, e.dur);
+  for (const e of opts.extra ?? []) noteBuffer('piano', e.midi, e.dur);
+  if (schedule.clicks.length) {
+    clickBuffer(true);
+    clickBuffer(false);
+  }
   const t0 = c.currentTime + 0.12;
   let loopIndex = 0;
   let ni = 0;
@@ -153,7 +196,7 @@ export function startTransport(bars: ChordBar[], opts: TransportOptions): Schedu
       let progressed = false;
       while (ni < schedule.notes.length && base + schedule.notes[ni].time < horizon) {
         const e = schedule.notes[ni++];
-        play(noteBuffer(opts.instrument, e.midi, e.dur), base + e.time, e.vel);
+        play(noteBuffer(opts.instrument, e.midi, e.dur), base + e.time, e.vel, e.midi);
         progressed = true;
       }
       while (ci < schedule.clicks.length && base + schedule.clicks[ci].time < horizon) {
@@ -163,7 +206,7 @@ export function startTransport(bars: ChordBar[], opts: TransportOptions): Schedu
       }
       while (ei < extra.length && base + extra[ei].time < horizon) {
         const e = extra[ei++];
-        play(noteBuffer('piano', e.midi, e.dur), base + e.time, 0.9);
+        play(noteBuffer('piano', e.midi, e.dur), base + e.time, 1, 1000 + e.midi);
         progressed = true;
       }
       while (bi < schedule.barTimes.length && base + schedule.barTimes[bi] < c.currentTime + 0.03) {

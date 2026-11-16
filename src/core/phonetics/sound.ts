@@ -10,8 +10,8 @@ import { CONSONANT_CODES, VOWEL_CODES, clusterSimilarity, vowelSimilarity } from
 import { analyzeLine, type LineInfo, type Syllable } from './line';
 import { pronounce, rhymeKey } from './pronounce';
 
-export type SoundMode = 'perfect' | 'slant' | 'multi' | 'assonance' | 'consonance' | 'alliteration';
-export const SOUND_MODES: SoundMode[] = ['perfect', 'slant', 'multi', 'assonance', 'consonance', 'alliteration'];
+export type SoundMode = 'perfect' | 'slant' | 'multi' | 'assonance' | 'consonance' | 'alliteration' | 'iambic';
+export const SOUND_MODES: SoundMode[] = ['perfect', 'slant', 'multi', 'assonance', 'consonance', 'alliteration', 'iambic'];
 
 export interface SoundSettings {
   modes: SoundMode[];
@@ -495,7 +495,36 @@ export function analyzeSound(input: InputLine[], settings: SoundSettings = DEFAU
     });
   }
 
+  // ------------------------------------------------------------ iambic feet
+  // weak–STRONG pairs (da-DUM). Each foot is one group; feet alternate two
+  // colours so the pulse is visible, and syllables that break the pattern
+  // are simply left unmarked.
+  if (modes.has('iambic')) {
+    lines.forEach((info, li) => {
+      const syls = info.syllables;
+      let foot = 0;
+      for (let i = 0; i + 1 < syls.length; ) {
+        // a medium syllable can serve as the weak half next to a strong one
+        const weak = syls[i].level === 0 || (syls[i].level === 1 && syls[i + 1].level === 2);
+        const strong = syls[i + 1].level >= 1 && syls[i + 1].level >= syls[i].level && !(syls[i].level === syls[i + 1].level);
+        if (weak && strong) {
+          const mark: Mark = { mode: 'iambic', group: 'i' + li + ':' + foot, color: foot % 2 };
+          addMark(li, i, mark);
+          addMark(li, i + 1, mark);
+          foot++;
+          i += 2;
+        } else i++;
+      }
+    });
+  }
+
   return { lines, marks, scheme, families };
+}
+
+/** How iambic a line is: the share of its syllables that fall into weak–strong feet (0..1). */
+export function iambicShare(marks: Mark[][]): number {
+  if (!marks.length) return 0;
+  return marks.filter((m) => m.some((x) => x.mode === 'iambic')).length / marks.length;
 }
 
 // ---------------------------------------------------------------- counts

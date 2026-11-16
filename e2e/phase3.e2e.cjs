@@ -38,7 +38,7 @@ const shots = process.argv[2] || null;
     await id('lyric-page').waitFor({ timeout: 30000 });
     await id('song-title').fill('Chord Test');
     await id('line-0-0-text').click();
-    await id('line-0-0-input').pressSequentially('walking down the river', { delay: 3 });
+    await id('section-0-input').pressSequentially('walking down the river', { delay: 3 });
     await settle();
 
     await check('ideas: set a key, add a suggested chord and a classic progression', async () => {

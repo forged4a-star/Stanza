@@ -39,13 +39,16 @@ interface Props {
   testID?: string;
 }
 
-function markColors(t: Theme, marks: Mark[] | undefined): { bg?: string; underline?: string } {
+function markColors(t: Theme, marks: Mark[] | undefined): { bg?: string; underline?: string; strong?: boolean } {
   if (!marks || !marks.length) return {};
   const pal = t.palette;
   const rhyme = marks.find((m) => m.mode === 'perfect' || m.mode === 'slant' || m.mode === 'multi');
-  const other = marks.find((m) => m !== rhyme);
+  const iamb = marks.find((m) => m.mode === 'iambic');
+  const other = marks.find((m) => m !== rhyme && m !== iamb);
+  // iambic feet: two alternating soft tints (rhyme colour wins when both apply)
+  const iambBg = iamb ? (iamb.color ? t.accent + '30' : t.textDim + '30') : undefined;
   return {
-    bg: rhyme ? pal[rhyme.color % pal.length] + (rhyme.mode === 'slant' ? '99' : '') : undefined,
+    bg: rhyme ? pal[rhyme.color % pal.length] + (rhyme.mode === 'slant' ? '99' : '') : iambBg,
     underline: other ? t.paletteInk[other.color % t.paletteInk.length] : undefined,
   };
 }
@@ -60,43 +63,12 @@ function LyricLineImpl({ line, meta, display, placeholder, testID }: Props) {
   const setLineText = useSong((s) => s.setLineText);
   const translate = useRef(new Animated.Value(0)).current;
 
-  // focus requests from the store (tap, Enter, merge, new section …)
-  const pendingCaret = useRef<number | null>(null);
-  const applyCaret = () => {
-    const c = pendingCaret.current;
-    if (c === null) return;
-    pendingCaret.current = null;
-    requestAnimationFrame(() => inputRef.current?.setSelection?.(c, c));
-  };
-  useEffect(() => {
-    if (!focus || line.locked) return;
-    const caret = focus.caret < 0 ? line.text.length : Math.min(focus.caret, line.text.length);
-    pendingCaret.current = caret;
-    selection.current = { start: caret, end: caret };
-    if (editing && inputRef.current) {
-      inputRef.current.focus();
-      applyCaret();
-    } else setEditing(true); // the TextInput mounts with autoFocus
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focus?.nonce]);
-
   const startEdit = () => {
     if (line.locked) {
       toast('This line is locked', { label: 'Unlock', run: () => useSong.getState().toggleLock(line.id) });
       return;
     }
     useSong.getState().requestFocus(line.id, -1);
-  };
-
-  const onKeyPress = (e: TextInputKeyPressEvent) => {
-    if (e.nativeEvent.key !== 'Backspace') return;
-    const sel = selection.current;
-    if (sel.start !== 0 || sel.end !== 0) return;
-    const st = useSong.getState();
-    // we handle it: don't let the same keystroke delete a character in the line we move to
-    e.preventDefault?.();
-    if (!line.text) st.removeLine(line.id);
-    else st.mergeWithPrevious(line.id);
   };
 
   // swipe gestures on the idle line
@@ -135,44 +107,7 @@ function LyricLineImpl({ line, meta, display, placeholder, testID }: Props) {
   const lyricStyle = [styles.lyric, { color: t.text }];
 
   let body;
-  if (editing) {
-    body = (
-      <TextInput
-        testID={testID ? testID + '-input' : undefined}
-        ref={inputRef}
-        value={line.text}
-        onChangeText={(v) => setLineText(line.id, v)}
-        onSelectionChange={(e) => {
-          selection.current = e.nativeEvent.selection;
-          caret.lineId = line.id;
-          caret.pos = e.nativeEvent.selection.start;
-        }}
-        onKeyPress={onKeyPress}
-        autoFocus
-        onFocus={() => {
-          useSong.getState().setActiveLine(line.id);
-          applyCaret();
-        }}
-        onBlur={() => {
-          // let the tap that caused the blur finish before the layout changes,
-          // or react-native-web cancels it (it sees the shift as a scroll)
-          setTimeout(() => {
-            if (!inputRef.current?.isFocused?.()) setEditing(false);
-          }, Platform.OS === 'web' ? 250 : 0);
-        }}
-        multiline
-        scrollEnabled={false}
-        blurOnSubmit={false}
-        autoCapitalize="sentences"
-        autoCorrect
-        placeholder={placeholder}
-        placeholderTextColor={t.textFaint}
-        onContentSizeChange={(e) => setHeight(Math.max(font.lyricLine, e.nativeEvent.contentSize.height))}
-        style={[lyricStyle, styles.input, { height: Platform.OS === 'web' ? undefined : height, minHeight: font.lyricLine }]}
-        accessibilityLabel="Lyric line"
-      />
-    );
-  } else if (display.showStress || line.chords.length > 0 || (display.showChords && line.text.trim())) {
+  if (display.showStress || line.chords.length > 0 || (display.showChords && line.text.trim())) {
     body = <SyllableGrid line={line} meta={meta} display={display} t={t} />;
   } else {
     body = (
@@ -188,14 +123,10 @@ function LyricLineImpl({ line, meta, display, placeholder, testID }: Props) {
         {line.locked ? <Icon name="lock-closed" size={13} color={t.textFaint} /> : line.alts.length ? <Text style={[styles.badge, { color: t.textDim, borderColor: t.border }]}>{line.alts.length + 1}</Text> : null}
         {commentCount > 0 && <Icon name="chatbubble" size={11} color={t.accent} />}
       </View>
-      <Animated.View style={{ flex: 1, transform: [{ translateX: translate }] }} {...(editing ? {} : pan.panHandlers)}>
-        {editing ? (
-          body
-        ) : (
-          <Pressable onPress={startEdit} onLongPress={() => display.onMenu(line.id)} delayLongPress={380} accessibilityRole="button" accessibilityHint="Tap to edit, long-press for line options, swipe to keep or flip alternates">
-            {body}
-          </Pressable>
-        )}
+      <Animated.View style={{ flex: 1, transform: [{ translateX: translate }] }} {...pan.panHandlers}>
+        <Pressable onPress={startEdit} onLongPress={() => display.onMenu(line.id)} delayLongPress={380} accessibilityRole="button" accessibilityHint="Tap to edit, long-press for line options, swipe to keep or flip alternates">
+          {body}
+        </Pressable>
       </Animated.View>
       <Pressable style={styles.margin} onPress={() => mismatch && toast(`${count} syllables here, ${mismatch.other} in ${mismatch.where}`)} accessibilityLabel={`${count} syllables${mismatch ? `, differs from ${mismatch.where}` : ''}`}>
         {display.showSyllables && count > 0 && (

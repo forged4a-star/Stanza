@@ -98,6 +98,12 @@ interface SongStore {
   setTags: (tags: string[]) => void;
 
   setLineText: (lineId: string, text: string) => void;
+  /**
+   * Replace a whole section's lyric text (one line per row). Lines that didn't
+   * change keep their identity; returns false (and changes nothing) if the
+   * edit would alter a locked line.
+   */
+  setSectionText: (sectionId: string, text: string) => boolean;
   insertLineAfter: (lineId: string, text?: string, focus?: boolean) => string | null;
   appendLine: (sectionId: string, text?: string) => string;
   removeLine: (lineId: string, focusPrev?: boolean) => void;
@@ -258,6 +264,61 @@ export const useSong = create<SongStore>((set, get) => {
       let after = lineId;
       for (const p of parts) after = get().insertLineAfter(after, p, false)!;
       get().requestFocus(after, parts.length === 1 ? 0 : -1);
+    },
+
+    setSectionText: (sectionId, text) => {
+      const doc = get().doc;
+      const sec = doc?.sections.find((x) => x.id === sectionId);
+      if (!doc || !sec) return false;
+      const next = text.replace(/\r\n?/g, '\n').split('\n');
+      const old = sec.lines;
+      // unchanged lines at the top and bottom keep their ids untouched
+      let pre = 0;
+      while (pre < old.length && pre < next.length && old[pre].text === next[pre]) pre++;
+      let suf = 0;
+      while (suf < old.length - pre && suf < next.length - pre && old[old.length - 1 - suf].text === next[next.length - 1 - suf]) suf++;
+      const oldMid = old.slice(pre, old.length - suf);
+      const newMid = next.slice(pre, next.length - suf);
+      if (!oldMid.length && !newMid.length) return true;
+      if (oldMid.some((l) => l.locked)) return false;
+      const lines: Line[] = [...old.slice(0, pre)];
+      const writes: (() => void)[] = [];
+      const deletes: (() => void)[] = [];
+      const joined = newMid.join('\n');
+      newMid.forEach((t, i) => {
+        const o = oldMid[i];
+        if (o) {
+          lines.push({ ...o, text: t });
+          writes.push(() => {
+            push((d) => repo.updateLine(d, o.id, { text: t }), 'line:' + o.id);
+            emit({ t: 'lineText', lineId: o.id, text: t });
+          });
+        } else {
+          const line: Line = { id: newId(), sectionId, sort: 0, text: t, locked: false, alts: [], chords: [] };
+          const after = lines[lines.length - 1]?.id ?? null;
+          const at = lines.length;
+          lines.push(line);
+          writes.push(() => {
+            push((d) => repo.insertLine(d, { ...line, sort: at }));
+            emit({ t: 'insertLine', sectionId, afterLineId: after, line: linePayload(line) });
+          });
+        }
+      });
+      for (const o of oldMid.slice(newMid.length)) {
+        // words that merely moved into a neighbouring line aren't "cut"
+        const moved = !o.text.trim() || joined.includes(o.text.trim());
+        deletes.push(() => {
+          push((d) => repo.deleteLine(d, o.id, !moved));
+          emit({ t: 'deleteLine', lineId: o.id });
+        });
+      }
+      lines.push(...old.slice(old.length - suf));
+      if (!lines.length) return false;
+      patchSection(sectionId, (x) => ({ ...x, lines: reindex(lines) }));
+      // deletes first so row positions line up for the inserts that follow
+      deletes.forEach((w) => w());
+      writes.forEach((w) => w());
+      return true;
     },
 
     insertLineAfter: (lineId, text = '', focus = true) => {

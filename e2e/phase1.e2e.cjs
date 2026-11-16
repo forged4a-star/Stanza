@@ -67,11 +67,11 @@ async function main() {
 
   await check('typing lines, Enter makes a new line, syllables are counted', async () => {
     await id('line-0-0-text').click();
-    await typeInto('line-0-0-input', 'Headlights on the wet road');
+    await typeInto('section-0-input', 'Headlights on the wet road');
     await page.keyboard.press('Enter');
-    await typeInto('line-0-1-input', 'radio low and the windows down');
+    await typeInto('section-0-input', 'radio low and the windows down');
     await page.keyboard.press('Enter');
-    await typeInto('line-0-2-input', 'I keep on driving home');
+    await typeInto('section-0-input', 'I keep on driving home');
     await saved();
     assert.equal(await id('line-0-0-count').innerText(), '6');
     assert.equal(await id('line-0-1-count').innerText(), '9');
@@ -81,12 +81,12 @@ async function main() {
 
   await check('add a chorus and a second verse; mismatched syllables are flagged', async () => {
     await addSection('Chorus');
-    await id('line-1-0-input').waitFor();
-    await typeInto('line-1-0-input', 'Drive all night');
+    await id('section-1-input').waitFor();
+    await typeInto('section-1-input', 'Drive all night');
     await page.keyboard.press('Enter');
-    await typeInto('line-1-1-input', 'till the morning light');
+    await typeInto('section-1-input', 'till the morning light');
     await addSection('Verse');
-    await typeInto('line-2-0-input', 'Streetlights shine on the river');
+    await typeInto('section-2-input', 'Streetlights shine on the river');
     await saved();
     // Verse 1 line 1 has 6, this has 7 → amber with a dot
     assert.equal(await id('line-2-0-count').innerText(), '7•');
@@ -114,8 +114,9 @@ async function main() {
     await id('stash-alt').click();
     await closeSheet();
     await id('line-0-2-text').click();
-    const input = id('line-0-2-input');
-    await input.press('ControlOrMeta+a');
+    const input = id('section-0-input');
+    await input.press('Home');
+    await input.press('Shift+End');
     await input.pressSequentially('I keep on drifting home', { delay: 5 });
     await settle();
     await saved();
@@ -131,7 +132,7 @@ async function main() {
     await closeSheet();
     await id('line-0-0-text').click();
     await page.getByText('This line is locked').waitFor();
-    assert.equal(await id('line-0-0-input').count(), 0);
+    assert.equal(await id('section-0-input').count(), 0);
   });
 
   await check('deleting a line sends it to the Scrapyard', async () => {
@@ -150,8 +151,8 @@ async function main() {
     await page.getByText('first draft').waitFor();
     await closeSheet();
     await id('line-1-0-text').click();
-    await id('line-1-0-input').press('End');
-    await id('line-1-0-input').pressSequentially(' long', { delay: 5 });
+    await id('section-1-input').press('End');
+    await id('section-1-input').pressSequentially(' long', { delay: 5 });
     await settle();
     await saved();
     await id('open-song-sheet').click();

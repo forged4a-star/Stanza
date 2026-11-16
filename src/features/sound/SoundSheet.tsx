@@ -23,6 +23,7 @@ const MODES: { mode: SoundMode; label: string; hint: string }[] = [
   { mode: 'assonance', label: 'Assonance', hint: 'shared vowel sounds' },
   { mode: 'consonance', label: 'Consonance', hint: 'repeated consonants in a line' },
   { mode: 'alliteration', label: 'Alliteration', hint: 'same first sound' },
+  { mode: 'iambic', label: 'Iambic feet', hint: 'weak–STRONG pairs (da-DUM), shaded foot by foot' },
 ];
 
 export function SoundSheet({ visible, onClose, analysis }: { visible: boolean; onClose: () => void; analysis: SongAnalysis | null }) {

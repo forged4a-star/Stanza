@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { multiRhymes, nearRhymes, perfectRhymes, relatedWords, senses, synonyms } from './lookup';
-import { analyzeSound, phonemeCounts, repeatedWords, vowelHeatmap, type InputLine } from './sound';
+import { analyzeSound, iambicShare, phonemeCounts, repeatedWords, vowelHeatmap, type InputLine } from './sound';
 
 const lines = (texts: string[], section = 's1'): InputLine[] => texts.map((text, i) => ({ id: section + i, sectionId: section, text }));
 const words = (hits: { word: string }[]) => hits.map((h) => h.word);
@@ -60,6 +60,20 @@ describe('other sound modes', () => {
     expect(pc.find((p) => p.code === 'l')!.count).toBeGreaterThanOrEqual(5);
     const heat = vowelHeatmap([r.lines]);
     expect(heat[0].reduce((a, b) => a + b, 0)).toBe(r.lines.reduce((n, l) => n + l.syllables.length, 0));
+  });
+});
+
+describe('iambic structure', () => {
+  it('marks weak–strong feet and leaves breaks unmarked', () => {
+    // "the NIGHT is DARK and FULL of FEAR": four clean iambs
+    const r = analyzeSound(lines(['the night is dark and full of fear']), { modes: ['iambic'], sensitivity: 0.5, scope: 'all' });
+    const feet = r.marks[0].map((m) => m.find((x) => x.mode === 'iambic')?.group ?? null);
+    expect(feet).toEqual(['i0:0', 'i0:0', 'i0:1', 'i0:1', 'i0:2', 'i0:2', 'i0:3', 'i0:3']);
+    expect(iambicShare(r.marks[0])).toBe(1);
+    // trochaic start ("BEAU-ti-ful"): the first stressed syllable has no weak partner before it
+    const t = analyzeSound(lines(['beautiful morning']), { modes: ['iambic'], sensitivity: 0.5, scope: 'all' });
+    expect(t.marks[0][0].length).toBe(0);
+    expect(iambicShare(t.marks[0])).toBeLessThan(1);
   });
 });
 

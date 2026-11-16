@@ -1,8 +1,9 @@
 /**
  * The lyric page — home. Everything else opens as a sheet over it.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type ScrollViewInstance } from 'react-native';
+import { scrollBus } from '../../features/editor/scrollBus';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SECTION_KIND_NAMES, sectionDisplayNames, type SectionKind } from '../../core/model';
@@ -19,6 +20,7 @@ import { ChordPicker, openChordPicker } from '../../features/chords/ChordPicker'
 import { ChordsSheet } from '../../features/chords/ChordsSheet';
 import { stopPlayer } from '../../features/chords/player';
 import { ShapeSheet } from '../../features/shape/ShapeSheet';
+import { ImportSheet } from '../../features/import/ImportSheet';
 import { connectSong, disconnect, sendPresence, useCollab } from '../../collab/collab';
 import { CommentsSheet } from '../../collab/CommentsSheet';
 import { MelodyChip, MelodyRoll, useMelodyUI } from '../../features/melody/MelodyRoll';
@@ -35,7 +37,7 @@ import { choose, toast } from '../../ui/Dialogs';
 import { Icon, IconButton } from '../../ui/kit';
 import { font, radius, space, TAP, useTheme } from '../../ui/theme';
 
-type Sheet = null | 'song' | 'takes' | 'versions' | 'arrange' | 'inbox' | 'sound' | 'words' | 'chords' | 'shape' | 'comments';
+type Sheet = null | 'song' | 'takes' | 'versions' | 'arrange' | 'inbox' | 'sound' | 'words' | 'chords' | 'shape' | 'comments' | 'import';
 
 export default function SongPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -94,6 +96,26 @@ export default function SongPage() {
     }),
     [settings.showSyllables, settings.showStress, settings.showScheme, settings.showChords, chordLabel]
   );
+
+  // keyboard: know where it is, lift the toolbar above it, and let editors scroll the caret into view
+  const { height: winH } = useWindowDimensions();
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const scrollY = useRef(0);
+  const [kbTop, setKbTop] = useState<number | null>(null);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', (e) => setKbTop(e.endCoordinates.screenY));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKbTop(null));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  // how much of the window the keyboard covers (0 when the system already resized the window)
+  const kbCover = kbTop === null ? 0 : Math.max(0, winH - kbTop);
+  useEffect(() => {
+    scrollBus.by = (dy) => scrollRef.current?.scrollTo({ y: Math.max(0, scrollY.current + dy), animated: true });
+    scrollBus.visibleBottom = () => (kbTop ?? winH) - 84;
+  }, [kbTop, winH]);
 
   // stop the chord player when leaving the song
   useEffect(() => () => stopPlayer(), []);
@@ -215,7 +237,11 @@ export default function SongPage() {
         </Pressable>
       )}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={[styles.page, { paddingBottom: 140 + insets.bottom }]} keyboardShouldPersistTaps={Platform.OS === "web" ? "always" : "handled"} keyboardDismissMode="interactive" testID="lyric-page">
+        <ScrollView
+          ref={scrollRef}
+          onScroll={(e) => (scrollY.current = e.nativeEvent.contentOffset.y)}
+          scrollEventThrottle={32}
+          contentContainerStyle={[styles.page, { paddingBottom: 140 + insets.bottom + (Platform.OS === 'ios' ? 0 : kbCover) }]} keyboardShouldPersistTaps={Platform.OS === "web" ? "always" : "handled"} keyboardDismissMode="interactive" testID="lyric-page">
           {doc.sections.map((s, i) => (
             <SectionBlock
               key={s.id}
@@ -245,7 +271,7 @@ export default function SongPage() {
 
       {/* bottom: a few quiet tools within thumb reach, and the record button */}
       {capturePhase === 'idle' && (
-        <View style={[styles.bottom, { paddingBottom: insets.bottom + space.sm }]} pointerEvents="box-none">
+        <View style={[styles.bottom, { paddingBottom: (kbCover ? 0 : insets.bottom) + space.sm, bottom: kbCover }]} pointerEvents="box-none">
           <View style={[styles.tools, { backgroundColor: t.surface, borderColor: t.border }]}>
             <IconButton icon="albums-outline" label={`Takes (${recordingsCount})`} onPress={() => setSheet('takes')} testID="open-takes" />
             <IconButton icon="file-tray-outline" label={`Inbox (${inboxCount})`} onPress={() => setSheet('inbox')} testID="open-inbox" />
@@ -279,6 +305,7 @@ export default function SongPage() {
       <WordSheet target={wordTarget} onClose={() => setWordTarget(null)} />
       <ChordsSheet visible={sheet === 'chords'} onClose={() => setSheet(null)} />
       <ChordPicker />
+      <ImportSheet visible={sheet === 'import'} onClose={() => setSheet(null)} mode="append" />
       <ShapeSheet visible={sheet === 'shape'} onClose={() => setSheet(null)} />
       <CommentsSheet visible={sheet === 'comments'} onClose={() => setSheet(null)} lineId={activeLineId} />
     </View>

@@ -4,8 +4,8 @@ const { humWav, chordWav } = require('./fixtures.cjs');
 const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
 const shots = process.argv[2] || null;
-const STEP = 16;
-const ROW = 11;
+const STEP = 22;
+const ROW = 18;
 
 (async () => {
   // the microphone hears a hummed phrase (C E G E) on a loop
@@ -45,7 +45,7 @@ const ROW = 11;
     const firstCRow = await id('melody-0').evaluate((el) => {
       const rows = [...el.querySelectorAll('div')].filter((d) => /^[A-G]#?\d$/.test(d.textContent || ''));
       const grid = el.querySelector('[data-testid="roll-grid-0"]').getBoundingClientRect();
-      return Math.round((rows[0].getBoundingClientRect().top + 5 - grid.top) / 11);
+      return Math.round((rows[0].getBoundingClientRect().top + 9 - grid.top) / 18);
     });
     return firstCRow + (topCMidi - midi);
   };
@@ -61,7 +61,7 @@ const ROW = 11;
     await id('lyric-page').waitFor({ timeout: 30000 });
     await id('song-title').fill('Melody Test');
     await id('line-0-0-text').click();
-    await id('line-0-0-input').pressSequentially('beautiful morning', { delay: 3 });
+    await id('section-0-input').pressSequentially('beautiful morning', { delay: 3 });
     await settle();
     await open('open-chords', 'chords-sheet');
     await tab('Ideas');

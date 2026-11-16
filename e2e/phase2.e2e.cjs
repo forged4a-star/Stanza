@@ -39,7 +39,7 @@ const shots = process.argv[2] || null;
     await id('line-0-0-text').click();
     for (const [i, text] of ['the night is bright and I feel alright', 'my rhymes are so fantastic', 'my style is like elastic', 'Peter picked a peck of pickled peppers'].entries()) {
       if (i) await page.keyboard.press('Enter');
-      await id(`line-0-${i}-input`).pressSequentially(text, { delay: 3 });
+      await id('section-0-input').pressSequentially(text, { delay: 3 });
     }
     await settle();
 
@@ -93,7 +93,7 @@ const shots = process.argv[2] || null;
 
     await check('words: rhymes for the word at the cursor, filtered by syllables', async () => {
       await id('line-0-0-text').click();
-      await id('line-0-0-input').press('End');
+      await id('section-0-input').press('End');
       await page.waitForTimeout(100);
       await open('open-words', 'word-sheet');
       assert.equal(await id('word-input').inputValue(), 'alright');

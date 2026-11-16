@@ -8,6 +8,7 @@ import { memo, useMemo, useRef, useState } from 'react';
 import { PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 import { create } from 'zustand';
+import * as Haptics from 'expo-haptics';
 import { playNote } from '../../audio/engine';
 import { startMic } from '../../audio/mic';
 import { allIssues, type Issue } from '../../core/lyrics/checks';
@@ -27,8 +28,8 @@ export const useMelodyUI = create<{ open: Record<string, boolean>; selected: str
 export const openMelody = (sectionId: string, open = true, select: string | null = null) =>
   useMelodyUI.setState((s) => ({ open: { ...s.open, [sectionId]: open }, selected: select ?? s.selected }));
 
-const ROW = 11;
-const STEP = 16;
+const ROW = 18;
+const STEP = 22;
 const ROWS = 25;
 
 function MelodyRollImpl({ section, index }: { section: SectionWithLines; index: number }) {
@@ -91,36 +92,12 @@ function MelodyRollImpl({ section, index }: { section: SectionWithLines; index: 
     playNote(pitch, 0.35);
   };
 
-  // drag the selected note
-  const drag = useRef<{ id: string; start: number; pitch: number } | null>(null);
-  const [ghost, setGhost] = useState<{ dx: number; dy: number } | null>(null);
-  const pan = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
-        // capture: take over a drag that started on the selected note
-        onMoveShouldSetPanResponderCapture: (_, g) => !!drag.current && (Math.abs(g.dx) > 4 || Math.abs(g.dy) > 4),
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderMove: (_, g) => setGhost({ dx: g.dx, dy: g.dy }),
-        onPanResponderRelease: (_, g) => {
-          const d = drag.current;
-          drag.current = null;
-          setGhost(null);
-          if (!d) return;
-          const ds = Math.round(g.dx / STEP);
-          let pitch = d.pitch - Math.round(g.dy / ROW);
-          if (useMelodyUI.getState().scaleLock) pitch = snapToScale(pitch, parseKey(useSong.getState().doc?.song.key));
-          const cur = useSong.getState().doc!.sections.find((s) => s.id === section.id)!.melody;
-          useSong.getState().setMelody(section.id, cur.map((n) => (n.id === d.id ? { ...n, start: Math.max(0, d.start + ds), pitch } : n)));
-          playNote(pitch, 0.3);
-        },
-        onPanResponderTerminate: () => {
-          drag.current = null;
-          setGhost(null);
-        },
-      }),
-    [section.id]
-  );
+  // while a note is being dragged the roll must not scroll under the finger
+  const [dragging, setDragging] = useState(false);
+  const commitNote = (id: string, patch: Partial<Note>) => {
+    const cur = useSong.getState().doc!.sections.find((x) => x.id === section.id)!.melody;
+    useSong.getState().setMelody(section.id, cur.map((n) => (n.id === id ? { ...n, ...patch } : n)));
+  };
 
   const humToggle = async () => {
     if (humming) {
@@ -206,14 +183,14 @@ function MelodyRollImpl({ section, index }: { section: SectionWithLines; index: 
             const p = top - r;
             return (
               <View key={r} style={{ height: ROW, justifyContent: 'center' }}>
-                {mod12(p) === 0 && <Text style={{ fontSize: 8, color: t.textDim }}>{midiName(p)}</Text>}
+                {mod12(p) === 0 && <Text style={{ fontSize: 10, color: t.textDim }}>{midiName(p)}</Text>}
                 {(p === settings.vocalLow || p === settings.vocalHigh) && <View style={{ position: 'absolute', right: 2, width: 6, height: 2, backgroundColor: t.warn }} />}
               </View>
             );
           })}
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ width: steps * STEP }} scrollEnabled={!ghost}>
-          <View style={[{ width: steps * STEP, height: ROWS * ROW }, NO_SELECT]} {...pan.panHandlers}>
+        <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ width: steps * STEP }} scrollEnabled={!dragging}>
+          <View style={[{ width: steps * STEP, height: ROWS * ROW }, NO_SELECT]}>
             <Svg width={steps * STEP} height={ROWS * ROW} style={StyleSheet.absoluteFill}>
               {bg}
             </Svg>
@@ -221,42 +198,37 @@ function MelodyRollImpl({ section, index }: { section: SectionWithLines; index: 
             {melody.map((n) => {
               const r = top - n.pitch;
               if (r < 0 || r >= ROWS) return null;
-              const isSel = n.id === selected;
               const issue = issueBy.get(n.id);
               const syl = linkedSyllable(n, section.lines);
-              const off = isSel && ghost ? ghost : { dx: 0, dy: 0 };
               return (
-                <Pressable
+                <NoteView
                   key={n.id}
-                  onPressIn={() => {
-                    if (isSel) drag.current = { id: n.id, start: n.start, pitch: n.pitch };
-                  }}
-                  onPress={() => {
-                    useMelodyUI.setState({ selected: isSel ? null : n.id });
+                  note={n}
+                  row={r}
+                  selected={n.id === selected}
+                  label={syl?.text ?? ''}
+                  a11y={`${midiName(n.pitch)}${syl ? ` "${syl.text}"` : ''}${issue ? `, ${issue.message}` : ''}`}
+                  color={outRange(n.pitch) ? t.danger : t.accent}
+                  border={n.id === selected ? t.text : issue ? (issue.severity === 2 ? t.danger : t.warn) : 'transparent'}
+                  textColor={t.accentText}
+                  testID={`note-${index}-${n.start}`}
+                  onDragState={setDragging}
+                  onTap={() => {
+                    useMelodyUI.setState({ selected: n.id === selected ? null : n.id });
                     playNote(n.pitch, 0.3);
                   }}
-                  style={[
-                    styles.note,
-                    {
-                      left: n.start * STEP + off.dx,
-                      top: r * ROW + off.dy,
-                      width: n.length * STEP - 1,
-                      height: ROW,
-                      backgroundColor: outRange(n.pitch) ? t.danger : t.accent,
-                      borderColor: isSel ? t.text : issue ? (issue.severity === 2 ? t.danger : t.warn) : 'transparent',
-                      borderWidth: isSel || issue ? 2 : 0,
-                    },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${midiName(n.pitch)}${syl ? ` "${syl.text}"` : ''}${issue ? `, ${issue.message}` : ''}`}
-                  testID={`note-${index}-${n.start}`}
-                >
-                  {syl && (
-                    <Text style={[styles.sylText, { color: t.accentText }]} numberOfLines={1}>
-                      {syl.text}
-                    </Text>
-                  )}
-                </Pressable>
+                  onMove={(dSteps, dRows) => {
+                    let pitch = n.pitch - dRows;
+                    if (useMelodyUI.getState().scaleLock) pitch = snapToScale(pitch, key);
+                    commitNote(n.id, { start: Math.max(0, n.start + dSteps), pitch });
+                    useMelodyUI.setState({ selected: n.id });
+                    playNote(pitch, 0.3);
+                  }}
+                  onResize={(dSteps) => {
+                    commitNote(n.id, { length: Math.max(1, n.length + dSteps) });
+                    useMelodyUI.setState({ selected: n.id });
+                  }}
+                />
               );
             })}
           </View>
@@ -275,6 +247,107 @@ function MelodyRollImpl({ section, index }: { section: SectionWithLines; index: 
       )}
       {issueBy.get(selected ?? '') && <Text style={{ color: t.warn, fontSize: font.small, paddingHorizontal: space.sm, paddingBottom: space.xs }}>{issueBy.get(selected!)!.message}</Text>}
       {humming && <Text style={{ color: t.record, fontSize: font.small, paddingHorizontal: space.sm, paddingBottom: space.xs }}>Listening… hum the melody, then press stop.</Text>}
+    </View>
+  );
+}
+
+/**
+ * One note. It answers the finger directly: drag to move (snapping to the
+ * grid as you go), drag its right edge to change length, tap to select.
+ */
+function NoteView(props: {
+  note: Note;
+  row: number;
+  selected: boolean;
+  label: string;
+  a11y: string;
+  color: string;
+  border: string;
+  textColor: string;
+  testID: string;
+  onTap: () => void;
+  onMove: (dSteps: number, dRows: number) => void;
+  onResize: (dSteps: number) => void;
+  onDragState: (d: boolean) => void;
+}) {
+  const { note, row, selected } = props;
+  const [live, setLive] = useState<{ mode: 'move' | 'resize'; ds: number; dr: number } | null>(null);
+  const cb = useRef(props);
+  cb.current = props;
+  const mode = useRef<'move' | 'resize'>('move');
+  const last = useRef('');
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: (e) => {
+          const w = cb.current.note.length * STEP;
+          // the right end of a note is its length handle (the whole note if it's tiny stays "move")
+          mode.current = e.nativeEvent.locationX > w - Math.min(18, w / 2) && w >= STEP * 1.5 ? 'resize' : 'move';
+          last.current = '';
+          cb.current.onDragState(true);
+        },
+        onPanResponderMove: (_, g) => {
+          const ds = Math.round(g.dx / STEP);
+          const dr = mode.current === 'move' ? Math.round(g.dy / ROW) : 0;
+          const k = ds + ':' + dr;
+          if (k !== last.current) {
+            last.current = k;
+            if (Platform.OS !== 'web') void Haptics.selectionAsync();
+            setLive({ mode: mode.current, ds, dr });
+          }
+        },
+        onPanResponderRelease: (_, g) => {
+          cb.current.onDragState(false);
+          setLive(null);
+          const ds = Math.round(g.dx / STEP);
+          const dr = Math.round(g.dy / ROW);
+          if (Math.abs(g.dx) < 6 && Math.abs(g.dy) < 6) cb.current.onTap();
+          else if (mode.current === 'resize') {
+            if (ds) cb.current.onResize(ds);
+          } else if (ds || dr) cb.current.onMove(ds, dr);
+        },
+        onPanResponderTerminate: () => {
+          cb.current.onDragState(false);
+          setLive(null);
+        },
+      }),
+    []
+  );
+  const start = note.start + (live?.mode === 'move' ? live.ds : 0);
+  const length = Math.max(1, note.length + (live?.mode === 'resize' ? live.ds : 0));
+  return (
+    <View
+      {...pan.panHandlers}
+      // a little taller than the row so it's easy to grab
+      hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+      style={[
+        styles.note,
+        {
+          left: Math.max(0, start) * STEP,
+          top: (row + (live?.mode === 'move' ? live.dr : 0)) * ROW,
+          width: length * STEP - 1,
+          height: ROW,
+          backgroundColor: props.color,
+          borderColor: props.border,
+          borderWidth: selected || props.border !== 'transparent' ? 2 : 0,
+          opacity: live ? 0.75 : 1,
+          zIndex: live || selected ? 5 : 1,
+        },
+      ]}
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={props.a11y}
+      testID={props.testID}
+    >
+      {!!props.label && (
+        <Text style={[styles.sylText, { color: props.textColor }]} numberOfLines={1}>
+          {props.label}
+        </Text>
+      )}
+      {selected && <View style={styles.handle} />}
     </View>
   );
 }
@@ -298,7 +371,8 @@ const styles = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 2 },
   lock: { borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 4 },
   note: { position: 'absolute', borderRadius: 3, justifyContent: 'center', overflow: 'hidden', ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as object) : {}) },
-  sylText: { fontSize: 8, fontWeight: '700', paddingHorizontal: 2 },
+  sylText: { fontSize: 11, fontWeight: '700', paddingHorizontal: 3 },
+  handle: { position: 'absolute', right: 0, top: 0, bottom: 0, width: 6, backgroundColor: 'rgba(255,255,255,0.55)' },
   selBar: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: space.sm },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginLeft: 22, marginBottom: space.sm, paddingHorizontal: space.md, paddingVertical: 6, borderRadius: radius.pill },
 });

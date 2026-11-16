@@ -248,3 +248,26 @@ that only exists natively is marked *not run on a device*.
   untested. Everything else was exercised on web.
 - iOS: deliberately set aside for now (WidgetKit extension code is in
   `targets/` but not built).
+
+## Round 2 — fixes from the first run on a phone
+
+- **Editing**: a section is now one text box while you edit it (Enter adds
+  exactly one line, holding Backspace runs across line breaks, selection and
+  paste span lines). Lines keep their alternates, chords and locks; a locked
+  line refuses edits. Verified in the browser and against SQLite.
+- **Keyboard**: the page tracks the keyboard and scrolls the caret's line
+  above it; the toolbar rides on top of the keyboard. *Android behaviour not
+  yet confirmed on a device.*
+- **Chord audio**: output had no headroom (a six-string chord summed to several
+  times full scale) and re-struck notes stacked. Now: lower master level, soft
+  limiter, a re-struck pitch replaces the old one, sounds rendered before
+  playback starts. Levels checked offline; *not yet confirmed on a device.*
+- **Piano roll touch**: bigger cells; drag a note to move it (snaps, with
+  haptics), drag its right end to resize, tap to select.
+- **Iambic feet** highlight mode (weak–strong pairs shaded foot by foot).
+- **Import lyrics** (Library → Import → Paste lyrics, or Song menu): sections
+  from headings, blank lines and repeats (a repeated block is a chorus),
+  chord lines kept over their syllables, double-spaced notes-app pastes
+  handled; confirmation screen to fix labels before saving. Rule-based, not a
+  model. Screenshot import is not built.
+- **AI lyric co-writer**: not built yet (needs a decision on the model).
