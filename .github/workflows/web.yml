@@ -1,0 +1,74 @@
+name: Web app
+
+# Builds the web version of Stanza and publishes it with GitHub Pages
+# (https://<owner>.github.io/<repo>/). Pages must be switched on once:
+# repository Settings > Pages > Source: GitHub Actions.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'e2e/**'
+      - 'server/**'
+      - 'targets/**'
+      - 'desktop/**'
+      - '.github/workflows/android-apk.yml'
+      - '.github/workflows/desktop.yml'
+      # editing this file alone does not republish the site; run it by hand when wanted
+      - '.github/workflows/web.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install JS dependencies
+        run: npm ci --no-audit --no-fund
+
+      # the site lives at /<repo name>/, so the app is built to expect that folder
+      - name: Build the web app
+        env:
+          BUILD_ID: ${{ github.sha }}
+          EXPO_BASE_URL: /${{ github.event.repository.name }}
+        run: scripts/pages-build.sh dist-pages
+
+      # also kept as a download, so a build from any branch can be tried without publishing it
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stanza-web
+          path: dist-pages
+          include-hidden-files: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist-pages
+
+  deploy:
+    # only the main branch publishes the site
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
