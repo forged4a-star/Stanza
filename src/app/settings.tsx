@@ -55,6 +55,19 @@ export default function SettingsScreen() {
         <View style={{ paddingHorizontal: space.lg }}>
           <SectionTitle>Chord player</SectionTitle>
           <VolumeSlider />
+          <Text style={{ color: t.textDim, fontSize: font.small, marginTop: space.sm }}>Sound output</Text>
+          <Segmented
+            value={s.audioMode}
+            onChange={(v) => s.set({ audioMode: v })}
+            options={[
+              { value: 'smooth', label: 'Smooth (recommended)' },
+              { value: 'fast', label: 'Fastest response' },
+            ]}
+            testID="audio-mode"
+          />
+          <Text style={{ color: t.textFaint, fontSize: font.small, marginTop: 4 }}>
+            Smooth uses bigger audio buffers so playback never crackles. Fastest response reacts a little quicker to taps but can crackle on some phones.
+          </Text>
           <AudioInfo />
         </View>
         <WritingStats />
@@ -151,7 +164,7 @@ function AudioInfo() {
         onPress={() => {
           previewChord('C', useSettings.getState().instrument);
           const e = engineStats();
-          setInfo(`Output ${e.sampleRate} Hz · ${e.buffers} sounds ready · ${e.voices} notes active · volume ${Math.round(e.volume * 100)}%`);
+          setInfo(`Output ${e.sampleRate} Hz · ${e.latency === 'playback' ? 'smooth' : 'fast'} mode · ${e.buffers} sounds ready · ${e.voices} sources playing · volume ${Math.round(e.volume * 100)}%`);
         }}
         testID="audio-test"
       />

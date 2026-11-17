@@ -11,11 +11,13 @@ const state = vi.hoisted(() => ({
   time: 0,
   contextRate: 48000,
   bufferRates: [] as number[],
-  sources: [] as { start: number; stop: number | null; bufferRate: number; gainNode: unknown; disconnected: boolean }[],
+  sources: [] as { start: number; stop: number | null; bufferRate: number; gainNode: unknown; disconnected: boolean; buffer: unknown }[],
   gains: [] as { disconnected: boolean; connectedTo: unknown; events: { type: string; value: number; time: number }[]; value: number }[],
   endedHandlersSet: 0,
   curve: null as Float32Array | null,
   masterRamps: [] as number[],
+  buffers: [] as { length: number; rate: number; data: Float32Array | null }[],
+  latency: '' as string,
 }));
 
 vi.mock('react-native-audio-api', () => {
@@ -55,9 +57,9 @@ vi.mock('react-native-audio-api', () => {
     }
   }
   class BufferSource {
-    buffer: { rate: number } | null = null;
+    buffer: { rate: number; data?: Float32Array | null } | null = null;
     started = false;
-    rec = { start: -1, stop: null as number | null, bufferRate: 0, gainNode: null as unknown, disconnected: false };
+    rec = { start: -1, stop: null as number | null, bufferRate: 0, gainNode: null as unknown, disconnected: false, buffer: null as unknown };
     set onended(_: unknown) {
       state.endedHandlersSet++;
     }
@@ -71,6 +73,7 @@ vi.mock('react-native-audio-api', () => {
       this.started = true;
       this.rec.start = t;
       this.rec.bufferRate = this.buffer!.rate;
+      this.rec.buffer = this.buffer;
       state.sources.push(this.rec);
     }
     stop(t: number) {
@@ -79,6 +82,12 @@ vi.mock('react-native-audio-api', () => {
     }
   }
   class AudioContext {
+    constructor(opts?: { latencyHint?: string }) {
+      state.latency = opts?.latencyHint ?? 'interactive';
+    }
+    close() {
+      return Promise.resolve();
+    }
     destination = {};
     state = 'running';
     get sampleRate() {
@@ -98,132 +107,172 @@ vi.mock('react-native-audio-api', () => {
     }
     createBuffer(_c: number, len: number, rate: number) {
       state.bufferRates.push(rate);
-      return { length: len, rate, copyToChannel() {} };
+      const b = { length: len, rate, data: null as Float32Array | null, copyToChannel(d: Float32Array) { b.data = d.slice(); } };
+      state.buffers.push(b);
+      return b;
     }
   }
   return { AudioContext };
 });
 
 import { softClipCurve } from '../core/audio/softclip';
-import { engineStats, MAX_VOICES, playNote, prepare, previewChord, setVolume, startTransport, stopTransport } from './engine';
+import { engineStats, playNote, prepare, previewChord, setVolume, startTransport, stopTransport } from './engine';
 
 beforeEach(() => {
   stopTransport();
+  vi.useFakeTimers();
   state.sources = [];
+  state.buffers = [];
   state.time = 0;
   state.masterRamps = [];
 });
 
+/** move the audio clock and let the engine's timer run, in small steps */
+function advance(seconds: number) {
+  for (let t = 0; t < seconds; t += 0.2) {
+    state.time += 0.2;
+    vi.advanceTimersByTime(200);
+  }
+}
+
 const bars = [{ chords: ['C'] }, { chords: ['Am', 'F'] }, { chords: ['G'] }];
+const longSong = Array.from({ length: 32 }, (_, i) => ({ chords: [['G', 'Em', 'C', 'D'][i % 4]] }));
+const busy = { bpm: 120, timeSig: [4, 4] as [number, number], pattern: 'strum-folk', instrument: 'acoustic' as const, metronome: true };
 
 describe('audio engine: every way it has gone wrong on a phone', () => {
   it('renders sounds at the device sample rate (native playback does not convert rates)', async () => {
     for (const rate of [44100, 48000]) {
       state.contextRate = rate;
-      // a fresh engine per rate: sounds are cached per context
       vi.resetModules();
       const fresh = await import('./engine');
       state.bufferRates = [];
       fresh.previewChord('C', 'piano');
-      fresh.startTransport([{ chords: ['G'] }], { bpm: 120, timeSig: [4, 4], pattern: 'block', instrument: 'acoustic', metronome: true, loop: false });
+      fresh.startTransport([{ chords: ['G'] }], { ...busy, loop: false });
       fresh.stopTransport();
-      expect(state.bufferRates.length).toBeGreaterThan(5);
+      expect(state.bufferRates.length).toBeGreaterThan(1);
       expect(new Set(state.bufferRates)).toEqual(new Set([rate]));
     }
     state.contextRate = 48000;
   });
 
-  it('places every note on the audio clock', () => {
-    startTransport(bars.slice(0, 2), { bpm: 120, timeSig: [4, 4], pattern: 'block', instrument: 'piano', metronome: false, loop: false });
-    const starts = [...new Set(state.sources.map((s) => Math.round((s.start - 0.15) * 20) / 20))];
-    expect(starts).toEqual([0, 2, 3]);
-    stopTransport();
-  });
-
-  it('gives each note its own volume node, silent until its start, and never leaves one wired up', () => {
-    state.time = 100;
-    const g0 = state.gains.length;
-    startTransport(bars, { bpm: 120, timeSig: [4, 4], pattern: 'strum-folk', instrument: 'piano', metronome: true, loop: false });
-    // inspect what was queued, before anything stops it
-    const noteGains = state.gains.slice(g0).filter((g) => g.events.length >= 2);
-    expect(noteGains.length).toBeGreaterThan(20);
-    for (const g of noteGains) {
-      // starts silent (value 0), holds its level from its start, and ramps to 0 at its end
-      expect(g.value).toBeDefined();
-      const sets = g.events.filter((e) => e.type === 'set');
-      const ramps = g.events.filter((e) => e.type === 'ramp');
-      expect(sets.length).toBe(2);
-      expect(ramps.length).toBe(1);
-      expect(ramps[0].value).toBe(0);
-      expect(sets[0].value).toBeGreaterThan(0);
-      expect(sets[0].time).toBeGreaterThanOrEqual(100);
+  it('a long, busy song keeps only a handful of sources connected (the cause of the crackle)', () => {
+    startTransport(longSong, { ...busy, loop: true }); // 32 bars of strumming: about 1,500 strummed notes per pass
+    let most = 0;
+    for (let step = 0; step < 400; step++) {
+      advance(0.2);
+      const connected = state.sources.filter((s) => !s.disconnected && (s.stop === null || s.stop > state.time)).length;
+      most = Math.max(most, connected);
     }
-    stopTransport(); // stopping before anything started silences it all, without throwing
-    state.time += 30;
-    playNote(60, 0.2, 'piano'); // any play releases what has finished
-    // finished notes are fully released (both source and volume node)
-    expect(state.gains.slice(g0).filter((g) => g.disconnected).length).toBeGreaterThan(noteGains.length - 4);
-    expect(state.sources.filter((s) => s.disconnected).length).toBeGreaterThan(20);
-    expect(engineStats().voices).toBeLessThan(MAX_VOICES);
+    stopTransport();
+    expect(most).toBeLessThanOrEqual(5);
+    // 80 seconds of music in chunks of a few seconds, not one source per note
+    expect(state.sources.length).toBeLessThan(40);
   });
 
-  it('does not register per-note ended callbacks', () => {
-    state.endedHandlersSet = 0;
-    startTransport(bars, { bpm: 120, timeSig: [4, 4], pattern: 'strum-pop', instrument: 'piano', metronome: true, loop: false });
+  it('each chunk starts on the audio clock, on a bar line', () => {
+    state.time = 10;
+    startTransport(longSong.slice(0, 8), { ...busy, loop: false });
+    advance(20);
+    const starts = state.sources.map((s) => s.start - state.sources[0].start);
+    // 2-second bars, chunks of at least 4 seconds: 0, 4, 8, 12
+    expect(starts.map((x) => Math.round(x * 1000) / 1000)).toEqual([0, 4, 8, 12]);
+    expect(state.sources[0].start).toBeGreaterThan(10);
     stopTransport();
-    expect(state.endedHandlersSet).toBe(0);
+  });
+
+  it('a loop reuses its mixed chunks on every pass instead of mixing them again', () => {
+    startTransport(bars, { ...busy, loop: true });
+    advance(4);
+    const mixed = state.buffers.length;
+    advance(30); // several more passes
+    expect(state.buffers.length).toBe(mixed);
+    const passes = new Set(state.sources.map((s) => s.buffer)).size;
+    expect(passes).toBeLessThanOrEqual(2); // the same buffer objects, started again
+    expect(state.sources.length).toBeGreaterThan(passes * 3);
+    stopTransport();
+  });
+
+  it('the mixed sound is real audio: not silent, no NaN, and in range', () => {
+    startTransport(bars, { ...busy, loop: false });
+    stopTransport();
+    const mixed = state.buffers.filter((b) => b.data && b.data.length > 48000);
+    expect(mixed.length).toBeGreaterThan(0);
+    for (const b of mixed) {
+      let peak = 0;
+      for (const v of b.data!) {
+        expect(Number.isNaN(v)).toBe(false);
+        peak = Math.max(peak, Math.abs(v));
+      }
+      expect(peak).toBeGreaterThan(0.1);
+      expect(peak).toBeLessThan(1.6);
+    }
+  });
+
+  it('stopping fades everything out (no click), including chunks queued but not started', () => {
+    state.time = 50;
+    startTransport(longSong, { ...busy, loop: true });
+    advance(1);
+    const g0 = state.gains.length;
+    expect(() => stopTransport()).not.toThrow();
+    const started = state.sources.filter((s) => s.start <= state.time);
+    for (const s of started) expect(s.stop).not.toBeNull();
+    const fades = state.gains.slice(0, g0).filter((g) => g.events.some((e) => e.type === 'ramp' && e.value === 0));
+    expect(fades.length).toBeGreaterThanOrEqual(started.length);
+    // anything queued for later never plays
+    for (const s of state.sources.filter((x) => x.start > state.time)) expect(s.stop).not.toBeNull();
+  });
+
+  it('a song that is not looped ends by itself and tells the app', () => {
+    const onEnd = vi.fn();
+    startTransport(bars, { ...busy, loop: false, onEnd });
+    advance(10);
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    const after = state.sources.length;
+    advance(10);
+    expect(state.sources.length).toBe(after);
+  });
+
+  it('the bar highlight follows the music without touching the sound', () => {
+    const seen: number[] = [];
+    startTransport(bars, { ...busy, loop: false, onBar: (i) => seen.push(i) });
+    advance(8);
+    expect(seen).toEqual([0, 1, 2]);
+  });
+
+  it('a chord preview or a single note is one source', () => {
+    const before = state.sources.length;
+    previewChord('C', 'acoustic');
+    expect(state.sources.length).toBe(before + 1);
+    playNote(64, 0.3);
+    expect(state.sources.length).toBe(before + 2);
   });
 
   it('keeps the graph bounded over a long session', () => {
-    const before = state.gains.length;
     for (let round = 0; round < 40; round++) {
-      state.time += 20;
-      startTransport(bars, { bpm: 120, timeSig: [4, 4], pattern: 'strum-folk', instrument: 'piano', metronome: true, loop: false });
+      startTransport(bars, { ...busy, loop: false });
+      advance(0.4);
       stopTransport();
+      previewChord('G', 'piano');
+      advance(2);
     }
-    state.time += 30;
-    playNote(60, 0.2, 'piano');
-    const alive = state.gains.slice(before).filter((g) => !g.disconnected).length;
-    expect(alive).toBeLessThan(MAX_VOICES + 5);
-    expect(engineStats().clicks).toBeLessThan(10);
+    advance(5);
+    playNote(60, 0.2, 'piano'); // any play releases what has finished
+    expect(engineStats().voices).toBeLessThan(5);
   });
 
-  it('re-striking a note, or hitting the voice cap, never disturbs other notes', () => {
-    state.time = 500;
-    // queue a long run of the same chord (every strike re-strikes the previous one)
-    startTransport([{ chords: ['G'] }, { chords: ['G'] }, { chords: ['G'] }, { chords: ['G'] }], { bpm: 90, timeSig: [4, 4], pattern: 'strum-folk', instrument: 'piano', metronome: false, loop: false });
-    stopTransport();
-    // an unfaded note must still hold its level at its start and ramp at its end: no gain
-    // may be left with its start event cancelled
-    for (const g of state.gains.filter((x) => x.events.length)) {
-      const sets = g.events.filter((e) => e.type === 'set');
-      const faded = g.events.some((e) => e.type === 'ramp');
-      if (faded) expect(sets.length).toBeGreaterThanOrEqual(1);
-    }
-    // stopping never throws, including for notes that had not started yet
-    expect(() => stopTransport()).not.toThrow();
+  it('does not register ended callbacks', () => {
+    state.endedHandlersSet = 0;
+    startTransport(bars, { ...busy, loop: false });
+    advance(8);
+    expect(state.endedHandlersSet).toBe(0);
   });
 
-  it('caps notes sounding at once', () => {
-    state.time = 900;
-    const n = MAX_VOICES + 15;
-    for (let i = 0; i < n; i++) playNote(40 + i, 2, 'piano', 901 + i * 0.001);
-    const stopped = state.sources.filter((s) => s.stop !== null && s.stop < 903).length;
-    expect(stopped).toBeGreaterThanOrEqual(15);
-  });
-
-  it('renders each note once and reuses it for every strum', async () => {
-    state.bufferRates = [];
+  it('renders each note sound once and reuses it', async () => {
+    vi.useRealTimers(); // preparing works between event-loop turns
     await prepare('electric', [60, 64, 67]);
-    const afterPrep = state.bufferRates.length;
-    expect(afterPrep).toBeLessThanOrEqual(3);
-    startTransport([{ chords: ['C'] }, { chords: ['C'] }], { bpm: 120, timeSig: [4, 4], pattern: 'strum-folk', instrument: 'electric', metronome: false, loop: false });
-    stopTransport();
-    // the transport may need other pitches of the chord, but never re-renders the same ones
-    const again = state.bufferRates.length;
-    previewChord('C', 'electric');
-    previewChord('C', 'electric');
-    expect(state.bufferRates.length).toBe(again);
+    const a = engineStats().buffers;
+    await prepare('electric', [60, 64, 67]);
+    expect(engineStats().buffers).toBe(a);
   });
 
   it('volume changes ramp smoothly and are bounded', () => {
@@ -236,13 +285,26 @@ describe('audio engine: every way it has gone wrong on a phone', () => {
     expect(state.masterRamps[0]).toBeCloseTo(0.28, 2);
   });
 
+  it('opens the output in smooth playback mode (deep buffers), not the fragile low-latency default', async () => {
+    vi.resetModules();
+    const fresh = await import('./engine');
+    fresh.previewChord('C');
+    expect(state.latency).toBe('playback');
+    // switching to the fast mode reopens the output, and back again
+    fresh.setAudioLatency('interactive');
+    fresh.previewChord('C');
+    expect(state.latency).toBe('interactive');
+    fresh.setAudioLatency('playback');
+    fresh.previewChord('C');
+    expect(state.latency).toBe('playback');
+  });
+
   it('the soft limiter changes nothing below its knee and never exceeds full scale', () => {
     const c = softClipCurve(2048, 0.8);
     const at = (x: number) => c[Math.round(((x + 1) / 2) * (c.length - 1))];
     for (const x of [-0.7, -0.3, 0, 0.1, 0.5, 0.79]) expect(at(x)).toBeCloseTo(x, 3);
     for (const x of [-1, -0.95, 0.9, 1]) expect(Math.abs(at(x))).toBeLessThanOrEqual(1);
     expect(at(1)).toBeGreaterThan(0.85);
-    // monotonic, so it never folds the waveform back
     for (let i = 1; i < c.length; i++) expect(c[i]).toBeGreaterThanOrEqual(c[i - 1]);
     expect(state.curve).not.toBeNull();
   });

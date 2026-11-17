@@ -47,6 +47,8 @@ export interface Settings {
   romanChords: boolean;
   /** chord player master volume, 0..1 */
   volume: number;
+  /** smooth = deep output buffers (no crackle); fast = lowest latency */
+  audioMode: 'smooth' | 'fast';
   /** chord player pattern and metronome */
   pattern: import('../core/audio/patterns').PatternId | string;
   /** strum patterns you made (the pattern id is `custom:<id>`) */
@@ -92,6 +94,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showChords: false,
   romanChords: false,
   volume: 0.7,
+  audioMode: 'smooth',
   pattern: 'strum-folk',
   customStrums: [],
   metronome: false,

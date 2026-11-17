@@ -1,69 +1,98 @@
 /**
  * Chord and melody playback.
  *
- * Timing: every note is placed on the audio clock (`currentTime`) when it is
- * queued, so its start time never depends on the JS thread. A timer only tops
- * up the *next* loop (two loops are always queued ahead) and moves the bar
- * highlight, which is display only.
+ * Why it is built this way: a phone's audio thread has a few milliseconds to
+ * produce each slice of sound. Earlier versions gave it one source and one
+ * volume node per strummed string, queued two loops ahead (hundreds or
+ * thousands of nodes for a long song), and on phones the audio thread could
+ * not keep up: crackles that got worse with longer or busier progressions.
  *
- * Sound: one AudioContext; each (instrument, pitch) is rendered once at the
- * device's own sample rate (the native engine plays buffers frame-for-frame,
- * it does not convert rates) and normalised to a common level; every note has
- * its own volume node, released as soon as the note finishes.
+ * Now the notes are mixed here, in plain code, into chunks of a few seconds
+ * (see core/audio/mixdown.ts), and only those chunks are played: about two to
+ * four sources are connected at any time, however long or busy the song.
+ *
+ * Timing: each chunk is started on the audio clock (`currentTime`), so the
+ * sound never depends on a timer firing on time. A timer only renders and
+ * queues the next chunk a few seconds ahead, and moves the bar highlight.
+ *
+ * Sound: one AudioContext; every (instrument, pitch) is rendered once at the
+ * device's own sample rate (the native engine plays buffers frame-for-frame;
+ * it does not convert rates) and normalised to a common level.
  */
 import { AudioContext, type AudioBuffer, type AudioBufferSourceNode, type GainNode } from 'react-native-audio-api';
+import { noteEnds, planChunks, renderChunk, type MixClick, type MixNote } from '../core/audio/mixdown';
 import { buildSchedule, chordGain, chordNotes, type PatternId, type Schedule } from '../core/audio/patterns';
 import type { CustomStrum } from '../core/audio/strums';
 import { softClipCurve } from '../core/audio/softclip';
 import { renderClick, renderNote, type Instrument } from '../core/audio/synth';
 import type { ChordBar } from '../core/model';
 
-/** Length of a cached note. Shorter notes are faded out on schedule. */
+/** Length of a cached note sound. Shorter notes fade out where they end. */
 const NOTE_SECONDS = 2;
-/** Most notes allowed to sound at the same instant. */
-export const MAX_VOICES = 20;
-/** Cached buffers kept at once (about 20 MB at 48 kHz). */
-const MAX_BUFFERS = 48;
-/** How many loops are always queued ahead of the audio clock. */
-const LOOKAHEAD_LOOPS = 2;
+/** Note sounds kept at once (about 18 MB at 48 kHz). */
+const MAX_NOTES = 48;
+/** Seconds of audio queued ahead of the clock. */
+const LOOKAHEAD = 6;
+/** How often the queue is topped up, ms. */
+const PUMP_MS = 200;
 /** Output level at slider 100 % (the soft limiter protects the top end). */
 const MASTER_MAX = 1.4;
+/** Fade used when stopping, so a stop never clicks. */
+const STOP_FADE = 0.025;
 
 let ctx: AudioContext | null = null;
+/**
+ * How the phone's audio output is opened. 'playback' gives Android deep output
+ * buffers, which ride through the small hiccups any phone has. The library's
+ * default ('interactive') asks for an exclusive low-latency stream fed every
+ * 128 samples (under 3 ms), and on many phones that crackles under load.
+ */
+export type AudioLatency = 'playback' | 'interactive';
+let latency: AudioLatency = 'playback';
 let master: GainNode | null = null;
-let clickOut: GainNode | null = null;
 let volume = 0.7;
-const buffers = new Map<string, AudioBuffer>();
-const clickBuffers = new Map<boolean, AudioBuffer>();
+const noteCache = new Map<string, Float32Array>();
+const clickCache = new Map<boolean, Float32Array>();
 
 interface Voice {
-  pitch: number;
-  start: number;
-  end: number;
   src: AudioBufferSourceNode;
   gain: GainNode;
-  fadeAt: (t: number) => void;
+  start: number;
+  end: number;
 }
-/** every voice that is sounding or queued to sound (pruned by time) */
-let voices: Voice[] = [];
-let clickSources: { src: AudioBufferSourceNode; end: number }[] = [];
+/** every source that is playing or queued (pruned by time) */
+let live: Voice[] = [];
 
 function context(): AudioContext {
   if (!ctx) {
-    ctx = new AudioContext();
+    ctx = new AudioContext({ latencyHint: latency });
     master = ctx.createGain();
     master.gain.value = volume * MASTER_MAX;
     const limiter = ctx.createWaveShaper();
     limiter.curve = softClipCurve();
     master.connect(limiter);
     limiter.connect(ctx.destination);
-    clickOut = ctx.createGain();
-    clickOut.gain.value = 1;
-    clickOut.connect(master);
   }
   if (ctx.state === 'suspended') void ctx.resume();
   return ctx;
 }
+
+/** Reopen the audio output in another mode (from Settings). Sounds are re-rendered at the new rate as needed. */
+export function setAudioLatency(mode: AudioLatency) {
+  if (mode === latency) return;
+  latency = mode;
+  if (!ctx) return;
+  stopTransport();
+  const old = ctx;
+  ctx = null;
+  master = null;
+  live = [];
+  noteCache.clear();
+  clickCache.clear();
+  safe(() => void old.close());
+}
+
+export const audioLatency = () => latency;
 
 /** 0..1, applied with a short ramp so it never clicks. */
 export function setVolume(v: number) {
@@ -92,25 +121,24 @@ function normalised(x: Float32Array, peak = 1): Float32Array {
   return x;
 }
 
-function noteBuffer(inst: Instrument, midi: number): AudioBuffer {
+function noteSample(inst: Instrument, midi: number): Float32Array {
   const key = `${inst}:${midi}`;
-  let b = buffers.get(key);
-  if (!b) {
-    if (buffers.size >= MAX_BUFFERS) buffers.clear();
-    const sr = context().sampleRate;
-    b = toBuffer(normalised(renderNote(inst, midi, NOTE_SECONDS, sr)));
-    buffers.set(key, b);
+  let s = noteCache.get(key);
+  if (!s) {
+    if (noteCache.size >= MAX_NOTES) noteCache.clear();
+    s = normalised(renderNote(inst, midi, NOTE_SECONDS, context().sampleRate));
+    noteCache.set(key, s);
   }
-  return b;
+  return s;
 }
 
-function clickBuffer(accent: boolean): AudioBuffer {
-  let b = clickBuffers.get(accent);
-  if (!b) {
-    b = toBuffer(renderClick(context().sampleRate, accent));
-    clickBuffers.set(accent, b);
+function clickSample(accent: boolean): Float32Array {
+  let s = clickCache.get(accent);
+  if (!s) {
+    s = renderClick(context().sampleRate, accent);
+    clickCache.set(accent, s);
   }
-  return b;
+  return s;
 }
 
 /**
@@ -119,10 +147,10 @@ function clickBuffer(accent: boolean): AudioBuffer {
  */
 export function prepare(inst: Instrument, midis: number[]): Promise<void> {
   context();
-  const todo = [...new Set(midis)].filter((m) => !buffers.has(`${inst}:${m}`));
+  const todo = [...new Set(midis)].filter((m) => !noteCache.has(`${inst}:${m}`));
   return new Promise((resolve) => {
     const step = () => {
-      for (let k = 0; k < 2 && todo.length; k++) noteBuffer(inst, todo.shift()!);
+      for (let k = 0; k < 2 && todo.length; k++) noteSample(inst, todo.shift()!);
       if (todo.length) setTimeout(step, 0);
       else resolve();
     };
@@ -146,88 +174,67 @@ const safe = (fn: () => void) => {
   try {
     fn();
   } catch {
-    // node already finished or released
+    // already finished or released
   }
 };
 
-/** Release everything that has finished sounding, by audio time (no events needed). */
+/** Release every source that has finished, by audio time. */
 function reap(t: number) {
-  if (voices.some((v) => v.end < t - 0.15)) {
-    const keep: Voice[] = [];
-    for (const v of voices) {
-      if (v.end < t - 0.15) {
-        safe(() => v.src.disconnect());
-        safe(() => v.gain.disconnect());
-      } else keep.push(v);
-    }
-    voices = keep;
+  if (!live.some((v) => v.end < t - 0.2)) return;
+  const keep: Voice[] = [];
+  for (const v of live) {
+    if (v.end < t - 0.2) {
+      safe(() => v.src.disconnect());
+      safe(() => v.gain.disconnect());
+    } else keep.push(v);
   }
-  if (clickSources.some((k) => k.end < t - 0.15)) {
-    clickSources = clickSources.filter((k) => {
-      if (k.end >= t - 0.15) return true;
-      safe(() => k.src.disconnect());
-      return false;
-    });
-  }
+  live = keep;
 }
 
-/** Ring a note on its own volume node. `end` is when it has finished sounding. */
-function play(inst: Instrument, midi: number, when: number, gain: number, dur?: number): Voice {
+/** Play a buffer at an audio-clock time, through its own volume node (so it can be faded on stop). */
+function playBuffer(buf: AudioBuffer, when: number, seconds: number): Voice {
   const c = context();
-  const start = Math.max(when, c.currentTime);
   reap(c.currentTime);
-  const end = start + (dur ?? NOTE_SECONDS);
-
-  // a note re-struck on the same pitch replaces the old one (no stacking)
-  for (const v of voices) if (v.pitch === midi && v.start <= start && v.end > start + 0.05) v.fadeAt(start);
-
-  // polyphony cap: count what is sounding at this instant; steal the oldest if full
-  const sounding = voices.filter((v) => v.start <= start && v.end > start);
-  if (sounding.length >= MAX_VOICES) {
-    sounding.sort((a, b) => a.start - b.start);
-    for (let k = 0; k < sounding.length - MAX_VOICES + 1; k++) sounding[k].fadeAt(start);
-  }
-
-  const g = c.createGain();
-  g.gain.value = 0; // silent until the scheduled start, whatever happens to timing
-  g.gain.setValueAtTime(gain, start);
-  g.gain.setValueAtTime(gain, end - 0.04);
-  g.gain.linearRampToValueAtTime(0, end);
-  g.connect(master!);
-
+  const start = Math.max(when, c.currentTime);
+  const gain = c.createGain();
+  gain.gain.value = 1;
+  gain.connect(master!);
   const src = c.createBufferSource();
-  src.buffer = noteBuffer(inst, midi);
-  src.connect(g);
+  src.buffer = buf;
+  src.connect(gain);
   src.start(start);
-  src.stop(end + 0.02);
+  const v: Voice = { src, gain, start, end: start + seconds };
+  live.push(v);
+  return v;
+}
 
-  const voice: Voice = {
-    pitch: midi,
-    start,
-    end,
-    src,
-    gain: g,
-    fadeAt: (t: number) => {
-      const at = Math.max(t, c.currentTime);
-      if (at >= voice.end - 0.04) return; // already on its way out
-      safe(() => {
-        g.gain.cancelScheduledValues(at);
-        if (at <= voice.start) {
-          // never started: keep it silent and stop it
-          g.gain.setValueAtTime(0, at);
-          src.stop(Math.max(at, c.currentTime));
-          voice.end = at;
-          return;
-        }
-        g.gain.setValueAtTime(gain, at);
-        g.gain.linearRampToValueAtTime(0, at + 0.03);
-        src.stop(at + 0.04);
-        voice.end = at + 0.04;
-      });
-    },
-  };
-  voices.push(voice);
-  return voice;
+function fadeOut(v: Voice, t: number) {
+  const c = context();
+  const at = Math.max(t, c.currentTime);
+  if (at >= v.end) return;
+  safe(() => {
+    const g = v.gain.gain;
+    g.cancelScheduledValues(at);
+    if (at <= v.start) {
+      // not started yet: it never will
+      g.setValueAtTime(0, at);
+      v.src.stop(at);
+      v.end = at;
+      return;
+    }
+    g.setValueAtTime(1, at);
+    g.linearRampToValueAtTime(0, at + STOP_FADE);
+    v.src.stop(at + STOP_FADE + 0.005);
+    v.end = at + STOP_FADE + 0.005;
+  });
+}
+
+/** Mix a few notes into one buffer and play it (previews and single notes). */
+function playNotes(notes: MixNote[], when: number) {
+  const c = context();
+  const sorted = [...notes].sort((a, b) => a.time - b.time);
+  const data = renderChunk(sorted, [], { start: 0, end: sorted[sorted.length - 1].time + 1e-3 }, { sampleRate: c.sampleRate, sample: noteSample });
+  playBuffer(toBuffer(data), when, data.length / c.sampleRate);
 }
 
 export function now(): number {
@@ -236,29 +243,41 @@ export function now(): number {
 
 /** Hear a chord once. */
 export function previewChord(name: string, inst: Instrument = 'piano', capo = 0) {
-  const notes = chordNotes(name, inst, capo);
-  const t = now() + 0.02;
+  const midis = chordNotes(name, inst, capo);
+  if (!midis.length) return;
   const gap = inst === 'piano' || inst === 'pad' ? 0.003 : 0.016;
-  const g = 0.9 * chordGain(notes.length);
-  notes.forEach((m, i) => play(inst, m, t + i * gap, g, 1.5));
+  const g = 0.9 * chordGain(midis.length);
+  playNotes(
+    midis.map((m, i) => ({ time: i * gap, midi: m, gain: g, dur: 1.5, inst })),
+    now() + 0.02
+  );
 }
 
 /** Hear a single note (melody preview). */
 export function playNote(midi: number, dur = 0.4, inst: Instrument = 'piano', at = 0) {
-  play(inst, midi, (at || now()) + 0.01, 0.9 * chordGain(1), dur);
+  playNotes([{ time: 0, midi, gain: 0.9 * chordGain(1), dur, inst }], (at || now()) + 0.01);
 }
 
-/** Silence everything (sounding and queued). */
+/** Silence everything (sounding and queued), with a short fade. */
 export function stopAll() {
-  const c = ctx;
-  if (!c) return;
-  for (const v of voices) v.fadeAt(c.currentTime);
-  for (const k of clickSources) safe(() => k.src.stop(c.currentTime));
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  for (const v of live) fadeOut(v, t);
 }
 
-/** Number of live audio nodes this engine holds (for tests and diagnostics). */
+/** What the engine is holding right now (for tests and the audio check in Settings). */
 export function engineStats() {
-  return { voices: voices.length, clicks: clickSources.length, buffers: buffers.size, sampleRate: ctx?.sampleRate ?? 0, volume };
+  return {
+    /** sources playing or queued: stays at a handful whatever the song */
+    voices: live.length,
+    /** chunks rendered for the current transport */
+    chunks: run?.chunksRendered ?? 0,
+    /** note sounds cached */
+    buffers: noteCache.size,
+    sampleRate: ctx?.sampleRate ?? 0,
+    volume,
+    latency,
+  };
 }
 
 // ------------------------------------------------------------------ transport
@@ -281,15 +300,16 @@ export interface TransportOptions {
 
 interface Run {
   stopped: boolean;
-  queueTimer: ReturnType<typeof setInterval> | null;
+  pump: ReturnType<typeof setInterval> | null;
   visualTimers: ReturnType<typeof setTimeout>[];
+  chunksRendered: number;
 }
 let run: Run | null = null;
 
 export function stopTransport() {
   if (!run) return;
   run.stopped = true;
-  if (run.queueTimer) clearInterval(run.queueTimer);
+  if (run.pump) clearInterval(run.pump);
   for (const t of run.visualTimers) clearTimeout(t);
   run = null;
   stopAll();
@@ -300,72 +320,89 @@ export function isPlaying() {
 }
 
 /**
- * Play chord bars (and optional melody). Every note of a loop is placed on the
- * audio clock when that loop is queued; nothing about the sound depends on a
- * timer firing on time.
+ * Play chord bars (and optional melody). The loop is cut into chunks of a few
+ * seconds on bar lines; each chunk is mixed once (and reused on every pass of
+ * a loop) and started on the audio clock.
  */
 export function startTransport(bars: ChordBar[], opts: TransportOptions): Schedule | null {
   stopTransport();
   const schedule = buildSchedule(bars, opts);
-  const extra = [...(opts.extra ?? [])].sort((a, b) => a.time - b.time);
+  const extra = opts.extra ?? [];
   if (!schedule.length && !extra.length) return null;
   const length = schedule.length || Math.max(...extra.map((e) => e.time + e.dur));
   const c = context();
-  const r: Run = { stopped: false, queueTimer: null, visualTimers: [] };
-  run = r;
-  const t0 = c.currentTime + 0.15;
-  const loops = opts.loop ? Infinity : 1;
-  let queued = 0;
+  const sr = c.sampleRate;
 
-  const queueLoop = (n: number) => {
-    const base = t0 + n * length;
-    const events: { time: number; inst: Instrument; midi: number; gain: number; dur: number }[] = [];
-    for (const e of schedule.notes) events.push({ time: e.time, inst: opts.instrument, midi: e.midi, gain: e.vel, dur: e.dur });
-    for (const e of extra) events.push({ time: e.time, inst: 'piano', midi: e.midi, gain: 0.9 * chordGain(1), dur: e.dur });
-    events.sort((x, y) => x.time - y.time);
-    for (const e of events) play(e.inst, e.midi, base + e.time, e.gain, e.dur);
-    if (opts.metronome) {
-      for (const k of schedule.clicks) {
-        const at = Math.max(base + k.time, c.currentTime);
-        const src = c.createBufferSource();
-        src.buffer = clickBuffer(k.accent);
-        src.connect(clickOut!);
-        src.start(at);
-        clickSources.push({ src, end: at + 0.1 });
-      }
+  const notes: MixNote[] = [
+    ...schedule.notes.map((e) => ({ time: e.time, midi: e.midi, gain: e.vel, dur: e.dur, inst: opts.instrument })),
+    ...extra.map((e) => ({ time: e.time, midi: e.midi, gain: 0.9 * chordGain(1), dur: e.dur, inst: 'piano' as Instrument })),
+  ].sort((a, b) => a.time - b.time);
+  const clicks: MixClick[] = opts.metronome ? schedule.clicks.map((k) => ({ time: k.time, accent: k.accent })) : [];
+  const ends = noteEnds(notes, opts.loop ? length : undefined);
+  const chunks = planChunks(schedule.barTimes.length ? schedule.barTimes : [0], length, 4);
+  const buffers: (AudioBuffer | null)[] = chunks.map(() => null);
+  const seconds: number[] = chunks.map(() => 0);
+
+  const r: Run = { stopped: false, pump: null, visualTimers: [], chunksRendered: 0 };
+  run = r;
+  const render = (k: number) => {
+    if (!buffers[k]) {
+      const data = renderChunk(notes, clicks, chunks[k], { sampleRate: sr, sample: noteSample, click: clickSample, ends });
+      buffers[k] = toBuffer(data);
+      seconds[k] = data.length / sr;
+      r.chunksRendered++;
     }
-    // the highlight is display only: it may run late, but never shifts the sound
-    if (opts.onBar) {
-      schedule.barTimes.forEach((bt, i) => {
-        const delay = (base + bt - c.currentTime) * 1000;
-        r.visualTimers.push(setTimeout(() => !r.stopped && opts.onBar!(i), Math.max(0, delay)));
-      });
-    }
+    return buffers[k]!;
   };
 
-  // queue ahead of the clock; a 500 ms timer keeps at least two loops queued
-  const topUp = () => {
+  // mix the opening before choosing the start time, so it can never start late
+  render(0);
+  const t0 = c.currentTime + 0.12;
+  const total = opts.loop ? Infinity : chunks.length;
+  let next = 0;
+
+  const pump = () => {
     if (r.stopped) return;
     reap(c.currentTime);
-    while (queued < loops && t0 + queued * length < c.currentTime + LOOKAHEAD_LOOPS * length) queueLoop(queued++);
+    let slowRenders = 0;
+    while (next < total) {
+      const pass = Math.floor(next / chunks.length);
+      const k = next % chunks.length;
+      const at = t0 + pass * length + chunks[k].start;
+      if (at > c.currentTime + LOOKAHEAD) break;
+      // mixing ahead of time is spread out, one chunk per tick, unless it is needed soon
+      if (!buffers[k]) {
+        if (slowRenders >= 1 && at - c.currentTime > 1) break;
+        slowRenders++;
+      }
+      const buf = render(k);
+      playBuffer(buf, at, seconds[k]);
+      if (k === 0 && opts.onBar) {
+        const base = t0 + pass * length;
+        schedule.barTimes.forEach((bt, i) => {
+          const delay = (base + bt - c.currentTime) * 1000;
+          r.visualTimers.push(setTimeout(() => !r.stopped && opts.onBar!(i), Math.max(0, delay)));
+        });
+      }
+      next++;
+    }
   };
-  topUp();
+  pump();
+  r.pump = setInterval(pump, PUMP_MS);
 
   if (!opts.loop) {
-    const endAt = t0 + length;
     r.visualTimers.push(
       setTimeout(
         () => {
           if (r.stopped) return;
+          if (r.pump) clearInterval(r.pump);
           run = null;
           r.stopped = true;
           opts.onEnd?.();
         },
-        Math.max(0, (endAt - c.currentTime) * 1000 + 300)
+        Math.max(0, (t0 + length - c.currentTime) * 1000 + 300)
       )
     );
-  } else {
-    r.queueTimer = setInterval(topUp, 500);
   }
   return schedule;
 }

@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import { renderChunk, type MixNote } from './mixdown';
 import { buildSchedule } from './patterns';
 import { softClipCurve } from './softclip';
 import { renderNote, type Instrument } from './synth';
@@ -6,12 +7,11 @@ import { renderNote, type Instrument } from './synth';
 const SR = 48000;
 const MASTER_MAX = 1.4;
 
-/** Offline mix of what the engine plays: normalised notes × per-note gain × master volume, through the limiter. */
+/** What the engine plays: the real mixer (normalised notes × per-note gain), × master volume, through the limiter. */
 function mix(inst: Instrument, chords: string[], pattern: 'strum-folk' | 'block' | 'arp-up', volume: number) {
   const s = buildSchedule(chords.map((c) => ({ chords: [c] })), { bpm: 120, timeSig: [4, 4], pattern, instrument: inst, metronome: false });
-  const out = new Float32Array(Math.ceil((s.length + 3) * SR));
   const cache = new Map<number, Float32Array>();
-  const note = (m: number) => {
+  const sample = (_i: Instrument, m: number) => {
     let b = cache.get(m);
     if (!b) {
       b = renderNote(inst, m, 2, SR);
@@ -22,13 +22,9 @@ function mix(inst: Instrument, chords: string[], pattern: 'strum-folk' | 'block'
     }
     return b;
   };
-  for (const e of s.notes) {
-    const buf = note(e.midi);
-    const at = Math.floor(e.time * SR);
-    // fixed-length notes fade at their end (the engine's gain ramp)
-    const len = Math.min(buf.length, Math.floor(e.dur * SR));
-    for (let i = 0; i < len && at + i < out.length; i++) out[at + i] += buf[i] * e.vel * volume * MASTER_MAX * Math.min(1, (len - i) / (0.04 * SR));
-  }
+  const notes: MixNote[] = s.notes.map((e) => ({ time: e.time, midi: e.midi, gain: e.vel, dur: e.dur, inst })).sort((x, y) => x.time - y.time);
+  const out = renderChunk(notes, [], { start: 0, end: s.length }, { sampleRate: SR, sample });
+  for (let i = 0; i < out.length; i++) out[i] *= volume * MASTER_MAX;
   const c = softClipCurve();
   const limit = (x: number) => c[Math.max(0, Math.min(c.length - 1, Math.round(((x + 1) / 2) * (c.length - 1))))];
   let rawPeak = 0;

@@ -6,7 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { processPendingRecordings } from '../audio/analysisJob';
-import { setVolume } from '../audio/engine';
+import { setAudioLatency, setVolume } from '../audio/engine';
 import { startEditLog } from '../store/editLog';
 import { startAutoSync } from '../sync/runner';
 import { getDb } from '../db/client';
@@ -43,9 +43,11 @@ export default function RootLayout() {
         setReady(true);
         setupQuickActions();
         // chord player volume: apply the saved level now and follow later changes
+        setAudioLatency(useSettings.getState().audioMode === 'fast' ? 'interactive' : 'playback');
         setVolume(useSettings.getState().volume);
         useSettings.subscribe((st, prev) => {
           if (st.volume !== prev.volume) setVolume(st.volume);
+          if (st.audioMode !== prev.audioMode) setAudioLatency(st.audioMode === 'fast' ? 'interactive' : 'playback');
         });
         startEditLog();
         void startAutoSync();
