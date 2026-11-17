@@ -3,12 +3,19 @@ import { create } from 'zustand';
 import { DEFAULT_SOUND_SETTINGS, type SoundMode } from '../core/phonetics/sound';
 import { getDb } from '../db/client';
 import * as repo from '../db/repo';
+import { DEFAULT_LOOK, lookById, type LookCustom } from '../ui/looks';
+import { sanitizeCustom } from '../ui/lookCode';
 
 export type ThemePref = 'system' | 'light' | 'dark';
-export type PaletteName = 'calm' | 'vivid' | 'colorblind';
+export type { PaletteName } from '../ui/themeEngine';
+import type { PaletteName } from '../ui/themeEngine';
 
 export interface Settings {
   theme: ThemePref;
+  /** the visual style (see ui/looks.ts) */
+  look: string;
+  /** a person's tweaks on top of the look */
+  custom: LookCustom;
   /** margin: syllable counts per line */
   showSyllables: boolean;
   /** dots under strong/weak syllables */
@@ -65,6 +72,8 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
+  look: DEFAULT_LOOK,
+  custom: {},
   showSyllables: true,
   showStress: false,
   showScheme: true,
@@ -101,6 +110,21 @@ interface SettingsStore extends Settings {
   loaded: boolean;
   load: () => Promise<void>;
   set: (patch: Partial<Settings>) => void;
+  /** like set, for things changed continuously (sliders): updates now, saves a moment after the last change */
+  setLive: (patch: Partial<Settings>) => void;
+  /** adjust the tweaks on top of the current look */
+  setCustom: (patch: Partial<LookCustom>) => void;
+  /** switch look; tweaks start fresh so the look appears as designed */
+  chooseLook: (id: string) => void;
+  /** clear all tweaks */
+  resetCustom: () => void;
+}
+
+let liveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function persist() {
+  const { loaded: _l, load: _a, set: _b, setLive: _c, setCustom: _d, chooseLook: _e, resetCustom: _f, ...prefs } = useSettings.getState();
+  getDb().then((db) => repo.setSetting(db, 'prefs', prefs));
 }
 
 export const useSettings = create<SettingsStore>((set, get) => ({
@@ -109,13 +133,24 @@ export const useSettings = create<SettingsStore>((set, get) => ({
   load: async () => {
     const db = await getDb();
     const saved = await repo.getSetting<Partial<Settings>>(db, 'prefs', {});
-    set({ ...DEFAULT_SETTINGS, ...saved, loaded: true });
+    // saved looks and tweaks may be from another version or hand-edited: keep only what is valid
+    set({ ...DEFAULT_SETTINGS, ...saved, look: lookById(saved.look).id, custom: sanitizeCustom(saved.custom), loaded: true });
   },
   set: (patch) => {
     set(patch);
-    const { loaded: _l, load: _a, set: _b, ...prefs } = get();
-    getDb().then((db) => repo.setSetting(db, 'prefs', prefs));
+    persist();
   },
+  setLive: (patch) => {
+    set(patch);
+    if (liveTimer) clearTimeout(liveTimer);
+    liveTimer = setTimeout(() => {
+      liveTimer = null;
+      persist();
+    }, 300);
+  },
+  setCustom: (patch) => get().setLive({ custom: sanitizeCustom({ ...get().custom, ...patch }) }),
+  chooseLook: (id) => get().set({ look: lookById(id).id, custom: {} }),
+  resetCustom: () => get().set({ custom: {} }),
 }));
 
 export async function getSettings(): Promise<Settings> {

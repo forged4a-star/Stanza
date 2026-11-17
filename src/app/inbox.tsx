@@ -12,8 +12,8 @@ import { startCapture, useCapturePhase } from '../features/capture/capture';
 import { addTextIdea } from '../features/inbox/InboxSheet';
 import { TakeRow, useTakePlayer } from '../features/takes/TakesSheet';
 import { choose, toast } from '../ui/Dialogs';
-import { Button, Empty, IconButton, Row } from '../ui/kit';
-import { font, space, TAP, useTheme } from '../ui/theme';
+import { Button, Empty, IconButton, Row, pageStyle } from '../ui/kit';
+import { font, space, TAP, useTheme, displayText } from '../ui/theme';
 
 type Item = Idea & { recording: Recording | null };
 
@@ -43,10 +43,10 @@ export default function InboxScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: insets.top }}>
+    <View style={[pageStyle(t), { paddingTop: insets.top }]}>
       <Row style={{ minHeight: TAP + 4, paddingHorizontal: space.xs }}>
         <IconButton icon="arrow-back" label="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace('/library'))} />
-        <Text style={{ flex: 1, color: t.text, fontSize: font.title, fontWeight: '700' }} accessibilityRole="header">
+        <Text style={[{ flex: 1, color: t.text }, displayText(t, font.title + 2)]} accessibilityRole="header">
           Inbox
         </Text>
       </Row>

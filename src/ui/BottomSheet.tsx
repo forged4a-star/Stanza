@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { font, radius, space, TAP, useTheme } from './theme';
+import { font, radius, space, TAP, useTheme, displayText } from './theme';
 
 interface Props {
   visible: boolean;
@@ -88,21 +88,24 @@ export function BottomSheet({ visible, onClose, title, height = 0.55, headerRigh
               height: sheetH,
               backgroundColor: t.surface,
               borderColor: t.border,
+              borderTopLeftRadius: t.r.xl,
+              borderTopRightRadius: t.r.xl,
               paddingBottom: insets.bottom,
               transform: [{ translateY: translate }],
             },
+            ({ boxShadow: '0 -10px 40px rgba(0,0,0,0.28)' } as object),
           ]}
         >
           <View {...pan.panHandlers} style={styles.grabArea}>
-            <View style={[styles.grabber, { backgroundColor: t.border }]} />
+            <View style={[styles.grabber, { backgroundColor: t.textFaint, opacity: 0.55 }]} />
             {(title || headerRight) && (
               <View style={styles.header}>
-                <Text style={[styles.title, { color: t.text }]} numberOfLines={1} accessibilityRole="header">
+                <Text style={[styles.title, { color: t.text }, displayText(t, font.body + 4)]} numberOfLines={1} accessibilityRole="header">
                   {title}
                 </Text>
                 {headerRight}
                 <Pressable onPress={onClose} hitSlop={10} style={styles.close} accessibilityLabel="Close sheet" accessibilityRole="button">
-                  <Ionicons name="close" size={22} color={t.textDim} />
+                  <Ionicons name="close" size={20} color={t.textDim} />
                 </Pressable>
               </View>
             )}

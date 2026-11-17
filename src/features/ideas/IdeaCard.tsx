@@ -7,7 +7,8 @@ import { getDb } from '../../db/client';
 import * as repo from '../../db/repo';
 import { useSettings } from '../../store/settings';
 import { toast } from '../../ui/Dialogs';
-import { Button, Row } from '../../ui/kit';
+import { Button, Row, Icon } from '../../ui/kit';
+import { alpha } from '../../ui/color';
 import { font, radius, space, useTheme } from '../../ui/theme';
 
 export function IdeaCard({ onStart }: { onStart: () => void }) {
@@ -18,9 +19,18 @@ export function IdeaCard({ onStart }: { onStart: () => void }) {
   if (!settings.dailyIdea || settings.ideaHiddenDay === today) return null;
   const card = cardById(idea.card);
   return (
-    <View style={{ padding: space.md, borderRadius: radius.md, backgroundColor: t.surface2, marginBottom: space.md, gap: 6 }} testID="idea-card">
-      <Text style={{ color: t.textDim, fontSize: font.tiny + 1, fontWeight: '700', letterSpacing: 0.8 }}>IDEA OF THE DAY</Text>
-      <Text style={{ color: t.text, fontSize: font.body + 1, lineHeight: 23 }} testID="idea-text">
+    <View
+      style={[
+        { padding: t.sp(space.lg), borderRadius: t.r.xl, marginBottom: space.md, gap: 8, borderWidth: 1, borderColor: alpha(t.accent, 0.35) },
+        ({ backgroundImage: `linear-gradient(135deg, ${alpha(t.accent, 0.2)} 0%, ${alpha(t.accent2, 0.08)} 100%)` } as object),
+      ]}
+      testID="idea-card"
+    >
+      <Row>
+        <Icon name="sparkles" size={15} color={t.chord} />
+        <Text style={{ color: t.chord, fontSize: font.tiny + 1, fontWeight: '700', letterSpacing: 1 }}>IDEA OF THE DAY</Text>
+      </Row>
+      <Text style={[{ color: t.text, fontSize: font.body + 3, lineHeight: 26 }, t.fonts.display ? { fontFamily: t.fonts.display } : null]} testID="idea-text">
         {idea.prompt}
       </Text>
       {card && (

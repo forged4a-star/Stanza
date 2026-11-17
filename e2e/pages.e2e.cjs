@@ -74,7 +74,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8082/Stanza/';
       await context.setOffline(false);
       await page.goto(BASE + 'library');
       await id('new-song').waitFor({ timeout: 30000 });
-      assert.match(await page.locator('body').innerText(), /Offline song/);
+      await id('song-Offline song').waitFor({ timeout: 15000 }); // the list fills in a moment after the screen opens
     });
 
     assert.deepEqual(errors.filter((e) => !/favicon|DevTools|Download the React/i.test(e)), []);

@@ -7,7 +7,7 @@ import { useSettings } from '../../store/settings';
 import { useSong } from '../../store/song';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { Button, Chip, ListItem, Row, SectionTitle } from '../../ui/kit';
-import { font, radius, space, useTheme } from '../../ui/theme';
+import { font, radius, space, useTheme, displayText } from '../../ui/theme';
 
 /** How many lines break the card in play (null when none is in play). Used by the song menu. */
 export function useCardBreaks(): { title: string; breaks: number } | null {
@@ -46,7 +46,7 @@ export function CardSheet({ visible, onClose }: { visible: boolean; onClose: () 
         {held ? (
           <View style={{ marginTop: space.md, padding: space.md, borderRadius: radius.md, backgroundColor: t.surface2 }} testID="card-held">
             <Text style={{ color: t.textDim, fontSize: font.tiny + 1, fontWeight: '700', letterSpacing: 0.8 }}>IN PLAY</Text>
-            <Text style={{ color: t.text, fontSize: font.title - 2, fontWeight: '700', marginTop: 2 }}>{held.title}</Text>
+            <Text style={[{ color: t.text, marginTop: 2 }, displayText(t, font.title - 2)]}>{held.title}</Text>
             <Text style={{ color: t.text, fontSize: font.body, marginTop: 2 }}>{held.rule}</Text>
             <SectionTitle>Check</SectionTitle>
             <Row style={{ flexWrap: 'wrap' }}>

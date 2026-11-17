@@ -496,3 +496,34 @@ Found by reading the native engine's source, not just testing in a browser:
 - Differences from the phone app: no screenshot import, home-screen widget or
   app-icon shortcut. Phone and PC do not share songs unless the optional sync
   server is set up.
+
+## New look: looks, themes you can tweak, redesigned screens
+
+- **Looks.** Six hand-tuned styles, each with a light and a dark version, its own
+  typefaces, corner roundness and background: Midnight (default), Paper, Neon,
+  Sunrise, Forest, Mono. Every look passes contrast checks in light and dark
+  (text, dim text, button labels, chords) in the unit tests.
+- **Look & feel screen** (library palette button, or Settings). A live preview is
+  pinned at the top. Below: the look gallery, light/dark/follow phone, accent
+  colour (12 swatches, a hue slider, or a typed colour; text on it stays
+  readable whatever you pick), roundness, density, lyric typeface/size/line
+  spacing, heading typeface, background (soft glow or plain), card style (soft,
+  flat, outlined), and the rhyme highlight palette.
+- **Share a look.** A look plus your tweaks becomes one line of text
+  (`stanza-look/1/neon/dark/a:4d8dff,…~x`) that can be pasted into another phone.
+  A damaged code is refused; any tweak is clamped to sensible limits.
+- **Typefaces.** Inter, Lora, Fraunces, Caveat, JetBrains Mono and Space Grotesk
+  are bundled (only the weights used; about 1.5 MB). The lyric editor, its
+  hidden measuring text and the syllable counts all use the same typeface, size
+  and line height from one place, so they stay aligned in every font.
+- **Redesigned.** New shared components (buttons with gradient and glow, chips,
+  switches that fill with the accent, sliders, cards), soft backgrounds, bottom
+  sheets, dialogs, the library (heading, song count, colour-coded cards, idea
+  card), the song page (heading in the display face, tinted section pills,
+  floating tool bar, glowing record button) and the chord player.
+- Existing behaviour and test hooks are unchanged: all earlier browser suites
+  pass.
+- Not tried on a phone: the look on a real screen (colours, gradients, text
+  sizes), the bundled fonts on Android, the gradient background property on
+  Android (supported by this React Native version, tested in the browser only).
+  Plain system font remains available as a typeface choice.

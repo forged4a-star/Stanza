@@ -39,8 +39,9 @@ import { VersionsSheet } from '../../features/versions/VersionsSheet';
 import { useSettings } from '../../store/settings';
 import { findLine, flushSaves, useSong } from '../../store/song';
 import { choose, toast } from '../../ui/Dialogs';
-import { Icon, IconButton } from '../../ui/kit';
-import { font, radius, space, TAP, useTheme } from '../../ui/theme';
+import { Icon, IconButton, pageStyle } from '../../ui/kit';
+import { font, radius, space, TAP, useTheme, displayText } from '../../ui/theme';
+import { alpha } from '../../ui/color';
 
 type Sheet = null | 'song' | 'takes' | 'versions' | 'arrange' | 'inbox' | 'sound' | 'words' | 'chords' | 'shape' | 'web' | 'cards' | 'image' | 'comments' | 'import';
 
@@ -211,9 +212,9 @@ export default function SongPage() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: insets.top }}>
+    <View style={[pageStyle(t), { paddingTop: insets.top }]}>
       {/* top bar: library, title, save state, song menu */}
-      <View style={[styles.top, { borderBottomColor: t.border }]}>
+      <View style={[styles.top, { borderBottomColor: 'transparent' }]}>
         <IconButton
           icon="library-outline"
           label="Library"
@@ -228,7 +229,7 @@ export default function SongPage() {
           onChangeText={(v) => useSong.getState().setTitle(v)}
           placeholder="Untitled"
           placeholderTextColor={t.textFaint}
-          style={[styles.title, { color: t.text }, Platform.OS === 'web' && ({ outlineStyle: 'none' } as object)]}
+          style={[styles.title, { color: t.text }, displayText(t, 22), Platform.OS === 'web' && ({ outlineStyle: 'none' } as object)]}
           accessibilityLabel="Song title"
           testID="song-title"
           returnKeyType="done"
@@ -291,7 +292,7 @@ export default function SongPage() {
             />
             ))
           )}
-          {!settings.chordSheet && <Pressable onPress={addSection} style={[styles.addSection, { borderColor: t.border }]} accessibilityRole="button" testID="add-section">
+          {!settings.chordSheet && <Pressable onPress={addSection} style={[styles.addSection, { borderColor: alpha(t.accent, 0.4), borderRadius: t.r.md, backgroundColor: alpha(t.accent, 0.05) }]} accessibilityRole="button" testID="add-section">
             <Icon name="add" size={18} color={t.textDim} />
             <Text style={{ color: t.textDim, fontSize: font.body }}>Section</Text>
           </Pressable>}
@@ -301,7 +302,7 @@ export default function SongPage() {
       {/* bottom: a few quiet tools within thumb reach, and the record button */}
       {capturePhase === 'idle' && (
         <View style={[styles.bottom, { paddingBottom: (kbCover ? 0 : insets.bottom) + space.sm, bottom: kbCover }]} pointerEvents="box-none">
-          <View style={[styles.tools, { backgroundColor: t.surface, borderColor: t.border }]}>
+          <View style={[styles.tools, { backgroundColor: alpha(t.surface, 0.96), borderColor: t.border, borderRadius: t.r.xl + 6 }, ({ boxShadow: '0 10px 30px rgba(0,0,0,0.28)' } as object)]}>
             <IconButton icon="albums-outline" label={`Takes (${recordingsCount})`} onPress={() => setSheet('takes')} testID="open-takes" />
             <IconButton icon="file-tray-outline" label={`Inbox (${inboxCount})`} onPress={() => setSheet('inbox')} testID="open-inbox" />
 
@@ -312,7 +313,7 @@ export default function SongPage() {
           <Pressable
             onPress={recordHere}
             onLongPress={() => startCapture({ songId: null, label: 'Idea' })}
-            style={({ pressed }) => [styles.rec, { backgroundColor: t.record }, pressed && { transform: [{ scale: 0.95 }] }]}
+            style={({ pressed }) => [styles.rec, { backgroundColor: t.record }, ({ backgroundImage: `linear-gradient(145deg, ${t.record} 0%, ${t.accent2} 140%)`, boxShadow: `0 10px 26px ${alpha(t.record, 0.5)}` } as object), pressed && { transform: [{ scale: 0.95 }] }]}
             accessibilityRole="button"
             accessibilityLabel="Record"
             accessibilityHint="Records a take for the section you're on. Long-press to record a loose idea to the Inbox."
@@ -346,12 +347,12 @@ export default function SongPage() {
 
 const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.xs, borderBottomWidth: StyleSheet.hairlineWidth, minHeight: TAP + 4 },
-  title: { flex: 1, minWidth: 0, width: 0, fontSize: font.body + 2, fontWeight: '600', paddingHorizontal: space.sm, minHeight: TAP },
+  title: { flex: 1, minWidth: 0, width: 0, paddingHorizontal: space.sm, minHeight: TAP },
   saveDot: { width: 20, alignItems: 'center' },
   live: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.lg, minHeight: 34 },
   page: { paddingHorizontal: space.md, paddingTop: space.lg, maxWidth: 760, width: '100%', alignSelf: 'center' },
   addSection: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, minHeight: TAP, borderWidth: 1, borderStyle: 'dashed', borderRadius: radius.md, marginLeft: 22, marginRight: 46 },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.md, gap: space.md },
-  tools: { flexDirection: 'row', borderRadius: radius.pill, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: space.xs, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 3 },
-  rec: { width: 68, height: 68, borderRadius: 34, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 6 },
+  tools: { flexDirection: 'row', borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: space.xs, elevation: 3 },
+  rec: { width: 68, height: 68, borderRadius: 34, alignItems: 'center', justifyContent: 'center', elevation: 6 },
 });

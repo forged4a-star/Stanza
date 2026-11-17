@@ -13,8 +13,16 @@ import { deleteAudio } from '../audio/storage';
 import { songProgress } from '../core/song/progress';
 import { askText, choose, confirm, toast } from '../ui/Dialogs';
 import { ProgressRing } from '../ui/ProgressRing';
-import { Chip, Empty, Icon, IconButton, Row } from '../ui/kit';
-import { font, radius, space, TAP, useTheme } from '../ui/theme';
+import { Chip, Empty, Icon, IconButton, Row, pageStyle, cardStyle } from '../ui/kit';
+import { ACCENT_SWATCHES } from '../ui/looks';
+import { displayText, font, radius, space, TAP, useTheme } from '../ui/theme';
+
+/** each song gets its own colour, so the list is easy to scan */
+const songColor = (id: string) => {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return ACCENT_SWATCHES[h % ACCENT_SWATCHES.length];
+};
 
 const ago = (ms: number) => {
   const d = Date.now() - ms;
@@ -111,16 +119,23 @@ export default function Library() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: insets.top }}>
+    <View style={[pageStyle(t), { paddingTop: insets.top }]}>
       <View style={styles.top}>
         <IconButton icon="arrow-back" label="Back to song" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
-        <Text style={[styles.h1, { color: t.text }]} accessibilityRole="header">
-          {trash ? 'Trash' : 'Library'}
-        </Text>
+        <View style={{ flex: 1, paddingHorizontal: space.sm }}>
+          <Text style={[{ color: t.text }, displayText(t, 28)]} accessibilityRole="header">
+            {trash ? 'Trash' : 'Your songs'}
+          </Text>
+          <Text style={{ color: t.textDim, fontSize: font.small }} testID="library-count">
+            {songs.length} {songs.length === 1 ? 'song' : 'songs'}
+            {!trash && songs.length > 0 ? ` · ${songs.filter((x) => x.status === 'finished').length} finished` : ''}
+          </Text>
+        </View>
+        <IconButton icon="color-palette-outline" label="Look and feel" onPress={() => router.push('/appearance')} testID="open-appearance-lib" />
         <IconButton icon="settings-outline" label="Settings" onPress={() => router.push('/settings')} testID="open-settings" />
       </View>
       <View style={{ paddingHorizontal: space.lg, gap: space.sm }}>
-        <View style={[styles.search, { backgroundColor: t.surface2 }]}>
+        <View style={[styles.search, cardStyle(t), { borderRadius: t.r.lg, paddingLeft: space.md }]}>
           <Icon name="search" size={18} color={t.textDim} />
           <TextInput
             value={query}
@@ -178,19 +193,19 @@ export default function Library() {
           <Pressable
             onPress={() => (trash ? songMenu(s) : openSong(s.id))}
             onLongPress={() => songMenu(s)}
-            style={({ pressed }) => [styles.card, { backgroundColor: t.surface, borderColor: t.border }, pressed && { opacity: 0.8 }]}
+            style={({ pressed }) => [cardStyle(t, { accentEdge: songColor(s.id), padded: true }), pressed && { opacity: 0.85 }]}
             accessibilityRole="button"
             accessibilityHint="Long-press for options"
             testID={`song-${s.title || 'untitled'}`}
           >
             <Row>
               {s.pinned && <Icon name="pin" size={14} color={t.accent} />}
-              <Text style={{ color: t.text, fontSize: font.body + 1, fontWeight: '600', flex: 1 }} numberOfLines={1}>
+              <Text style={[{ color: t.text, flex: 1 }, displayText(t, 18)]} numberOfLines={1}>
                 {s.title || 'Untitled'}
               </Text>
               <Text style={{ color: t.textFaint, fontSize: font.small }}>{ago(s.updatedAt)}</Text>
             </Row>
-            <Text style={{ color: t.textDim, fontSize: font.body, marginTop: 4 }} numberOfLines={2}>
+            <Text style={[{ color: t.textDim, fontSize: font.body, marginTop: 4 }, t.fonts.lyric ? { fontFamily: t.fonts.lyric } : null]} numberOfLines={2}>
               {s.match ?? (s.preview || 'Empty')}
             </Text>
             <Row style={{ marginTop: 6 }}>
@@ -237,7 +252,7 @@ export default function Library() {
           <Icon name="download-outline" size={18} color={t.textDim} />
           <Text style={{ color: t.textDim }}>Import</Text>
         </Pressable>
-        <Pressable onPress={newSong} style={[styles.pill, { backgroundColor: t.accent, borderColor: t.accent }]} accessibilityRole="button" testID="new-song">
+        <Pressable onPress={newSong} style={[styles.pill, { backgroundColor: t.accent, borderColor: t.accent }, ({ backgroundImage: t.gradient, boxShadow: t.shadow.glow } as object)]} accessibilityRole="button" testID="new-song">
           <Icon name="add" size={20} color={t.accentText} />
           <Text style={{ color: t.accentText, fontWeight: '700' }}>New song</Text>
         </Pressable>
@@ -249,8 +264,8 @@ export default function Library() {
 function Shortcut({ icon, label, count, onPress, testID }: { icon: 'file-tray-outline' | 'trash-bin-outline'; label: string; count: number; onPress: () => void; testID?: string }) {
   const t = useTheme();
   return (
-    <Pressable onPress={onPress} style={[styles.shortcut, { backgroundColor: t.surface2 }]} accessibilityRole="button" testID={testID}>
-      <Icon name={icon} size={20} color={t.textDim} />
+    <Pressable onPress={onPress} style={[styles.shortcut, cardStyle(t), { borderRadius: t.r.lg }]} accessibilityRole="button" testID={testID}>
+      <Icon name={icon} size={20} color={t.accent} />
       <Text style={{ color: t.text, fontSize: font.body, flex: 1 }}>{label}</Text>
       <Text style={{ color: t.textFaint }}>{count}</Text>
     </Pressable>
@@ -258,7 +273,7 @@ function Shortcut({ icon, label, count, onPress, testID }: { icon: 'file-tray-ou
 }
 
 const styles = StyleSheet.create({
-  top: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.xs, minHeight: TAP + 4 },
+  top: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.xs, minHeight: TAP + 20, paddingTop: 6 },
   h1: { flex: 1, fontSize: font.title, fontWeight: '700', paddingHorizontal: space.sm },
   search: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.md, paddingLeft: space.md, gap: space.sm },
   card: { borderRadius: radius.md, padding: space.lg, borderWidth: StyleSheet.hairlineWidth },

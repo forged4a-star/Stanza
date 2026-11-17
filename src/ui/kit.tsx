@@ -1,4 +1,4 @@
-/** Small shared UI pieces: buttons, chips, rows, toggles, segmented control, slider. */
+/** Shared UI pieces: buttons, chips, cards, rows, toggles, segmented control, slider. All follow the look (see looks.ts). */
 import { useRef, useState, type ReactNode } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -6,7 +6,6 @@ import {
   PanResponder,
   Pressable,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
@@ -14,13 +13,52 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
-import { font, radius, space, TAP, useTheme } from './theme';
+import { alpha } from './color';
+import { font, space, TAP, useTheme, type Theme } from './theme';
 
 export type IconName = keyof typeof Ionicons.glyphMap;
+
+/** Style props that React Native supports but its older type definitions do not list. */
+const fx = (o: { backgroundImage?: string; boxShadow?: string }) => o as ViewStyle;
 
 export function Icon({ name, size = 22, color }: { name: IconName; size?: number; color?: string }) {
   const t = useTheme();
   return <Ionicons name={name} size={size} color={color ?? t.text} />;
+}
+
+/** Style for a screen's outermost view: the look's background colour and soft gradient. */
+export function pageStyle(t: Theme): ViewStyle {
+  return { flex: 1, backgroundColor: t.bg, ...(t.pageGradient ? fx({ backgroundImage: t.pageGradient }) : null) };
+}
+
+/** A whole screen's background: the look's colour, with its soft gradient if it has one. */
+export function Page({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+  const t = useTheme();
+  return <View style={[{ flex: 1, backgroundColor: t.bg }, t.pageGradient ? fx({ backgroundImage: t.pageGradient }) : null, style]}>{children}</View>;
+}
+
+/** A panel. Soft (shadow and hairline), flat (tinted) or outline, following the look. */
+export function cardStyle(t: Theme, opts: { accentEdge?: string; padded?: boolean } = {}): ViewStyle {
+  const base: ViewStyle = {
+    borderRadius: t.r.lg,
+    overflow: 'hidden',
+    ...(opts.padded ? { padding: t.sp(space.md) } : null),
+    ...(opts.accentEdge ? { borderLeftWidth: 3, borderLeftColor: opts.accentEdge } : null),
+  };
+  if (t.surfaceStyle === 'outline') return { ...base, borderWidth: 1, borderColor: t.border, backgroundColor: 'transparent' };
+  if (t.surfaceStyle === 'flat') return { ...base, backgroundColor: t.surface2 };
+  return { ...base, backgroundColor: t.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: t.border, ...fx({ boxShadow: t.shadow.card }) };
+}
+
+export function Card({ children, style, accentEdge, padded = true, onPress, testID, accessibilityLabel }: { children: ReactNode; style?: StyleProp<ViewStyle>; accentEdge?: string; padded?: boolean; onPress?: () => void; testID?: string; accessibilityLabel?: string }) {
+  const t = useTheme();
+  const s = [cardStyle(t, { accentEdge, padded }), style];
+  if (!onPress) return <View style={s} testID={testID}>{children}</View>;
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={accessibilityLabel} testID={testID} style={({ pressed }) => [s, pressed && { opacity: 0.85 }]}>
+      {children}
+    </Pressable>
+  );
 }
 
 export function IconButton({
@@ -59,7 +97,8 @@ export function IconButton({
       hitSlop={4}
       style={({ pressed }) => [
         styles.iconBtn,
-        active && { backgroundColor: t.surface2 },
+        { borderRadius: t.r.md },
+        active && { backgroundColor: alpha(t.accent, 0.16) },
         pressed && { opacity: 0.6 },
         disabled && { opacity: 0.35 },
         style,
@@ -92,8 +131,9 @@ export function Button({
   compact?: boolean;
 }) {
   const t = useTheme();
-  const bg = kind === 'primary' ? t.accent : kind === 'ghost' ? 'transparent' : t.surface2;
-  const fg = kind === 'primary' ? t.accentText : kind === 'danger' ? t.danger : t.text;
+  const primary = kind === 'primary';
+  const fg = primary ? t.accentText : kind === 'danger' ? t.danger : t.text;
+  const bg = primary ? t.accent : kind === 'ghost' ? 'transparent' : kind === 'danger' ? alpha(t.danger, 0.13) : t.surface2;
   return (
     <Pressable
       testID={testID}
@@ -103,9 +143,9 @@ export function Button({
       accessibilityLabel={title}
       style={({ pressed }) => [
         styles.btn,
-        compact && { minHeight: 38, paddingHorizontal: space.md },
-        { backgroundColor: bg },
-        pressed && { opacity: 0.7 },
+        { borderRadius: t.r.md, minHeight: compact ? t.sp(38) : t.sp(TAP), paddingHorizontal: t.sp(compact ? space.md : space.lg), backgroundColor: bg },
+        primary && fx({ backgroundImage: t.gradient, boxShadow: disabled ? undefined : t.shadow.glow }),
+        pressed && { opacity: 0.82, transform: [{ scale: 0.98 }] },
         (disabled || busy) && { opacity: 0.45 },
         style,
       ]}
@@ -130,17 +170,18 @@ export function Chip({ label, selected, onPress, color, onLongPress, testID }: {
       accessibilityLabel={label}
       style={({ pressed }) => [
         styles.chip,
-        { borderColor: selected ? t.accent : t.border, backgroundColor: selected ? (color ?? t.surface2) : 'transparent' },
+        { minHeight: t.sp(36), borderColor: selected ? alpha(t.accent, 0.7) : t.border, backgroundColor: selected ? (color ?? alpha(t.accent, 0.15)) : 'transparent' },
         pressed && { opacity: 0.7 },
       ]}
     >
-      <Text style={{ color: selected ? t.text : t.textDim, fontSize: font.small + 1, fontWeight: selected ? '600' : '400' }}>{label}</Text>
+      <Text style={{ color: selected ? t.text : t.textDim, fontSize: font.small + 1, fontWeight: selected ? '700' : '500' }}>{label}</Text>
     </Pressable>
   );
 }
 
 export function Row({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
-  return <View style={[{ flexDirection: 'row', alignItems: 'center', gap: space.sm }, style]}>{children}</View>;
+  const t = useTheme();
+  return <View style={[{ flexDirection: 'row', alignItems: 'center', gap: t.sp(space.sm) }, style]}>{children}</View>;
 }
 
 export function ListItem({
@@ -170,9 +211,13 @@ export function ListItem({
       onLongPress={onLongPress}
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={title}
-      style={({ pressed }) => [styles.item, { borderBottomColor: t.border }, pressed && onPress && { backgroundColor: t.surface2 }]}
+      style={({ pressed }) => [styles.item, { minHeight: t.sp(TAP + 8), borderBottomColor: alpha(t.border, 0.7) }, pressed && onPress && { backgroundColor: alpha(t.accent, 0.08) }]}
     >
-      {icon && <Ionicons name={icon} size={20} color={danger ? t.danger : t.textDim} style={{ width: 26 }} />}
+      {icon && (
+        <View style={[styles.itemIcon, { borderRadius: t.r.sm + 2, backgroundColor: danger ? alpha(t.danger, 0.13) : alpha(t.accent, 0.13) }]}>
+          <Ionicons name={icon} size={18} color={danger ? t.danger : t.accent} />
+        </View>
+      )}
       <View style={{ flex: 1 }}>
         <Text style={{ color: danger ? t.danger : t.text, fontSize: font.body }} numberOfLines={2}>
           {title}
@@ -188,15 +233,25 @@ export function ListItem({
   );
 }
 
+/** The on/off switch: a pill that fills with the look's accent. */
+export function Toggle({ value }: { value: boolean }) {
+  const t = useTheme();
+  return (
+    <View style={[styles.toggle, { borderRadius: 16, backgroundColor: value ? t.accent : t.surface2, borderColor: value ? t.accent : t.border }, value && fx({ backgroundImage: t.gradient })]} pointerEvents="none">
+      <View style={[styles.toggleKnob, { backgroundColor: value ? t.accentText : t.textDim, alignSelf: value ? 'flex-end' : 'flex-start' }]} />
+    </View>
+  );
+}
+
 export function ToggleRow({ label, value, onChange, hint, testID }: { label: string; value: boolean; onChange: (v: boolean) => void; hint?: string; testID?: string }) {
   const t = useTheme();
   return (
-    <Pressable onPress={() => onChange(!value)} style={[styles.item, { borderBottomColor: t.border }]} accessibilityRole="switch" accessibilityState={{ checked: value }} accessibilityLabel={label} testID={testID}>
+    <Pressable onPress={() => onChange(!value)} style={[styles.item, { minHeight: t.sp(TAP + 8), borderBottomColor: alpha(t.border, 0.7) }]} accessibilityRole="switch" accessibilityState={{ checked: value }} accessibilityLabel={label} testID={testID}>
       <View style={{ flex: 1 }}>
         <Text style={{ color: t.text, fontSize: font.body }}>{label}</Text>
         {!!hint && <Text style={{ color: t.textDim, fontSize: font.small, marginTop: 2 }}>{hint}</Text>}
       </View>
-      <Switch value={value} onValueChange={onChange} trackColor={{ true: t.accent, false: t.border }} />
+      <Toggle value={value} />
     </Pressable>
   );
 }
@@ -204,7 +259,7 @@ export function ToggleRow({ label, value, onChange, hint, testID }: { label: str
 export function Segmented<T extends string>({ options, value, onChange, testID }: { options: { value: T; label: string }[]; value: T; onChange: (v: T) => void; testID?: string }) {
   const t = useTheme();
   return (
-    <View testID={testID} style={[styles.seg, { backgroundColor: t.surface2 }]} accessibilityRole="tablist">
+    <View testID={testID} style={[styles.seg, { backgroundColor: t.surface2, borderRadius: t.r.md + 2 }]} accessibilityRole="tablist">
       {options.map((o) => {
         const on = o.value === value;
         return (
@@ -214,9 +269,9 @@ export function Segmented<T extends string>({ options, value, onChange, testID }
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
             accessibilityLabel={o.label}
-            style={[styles.segItem, on && { backgroundColor: t.surface, borderColor: t.border, borderWidth: StyleSheet.hairlineWidth }]}
+            style={[styles.segItem, { minHeight: t.sp(38), borderRadius: t.r.md }, on && { backgroundColor: t.surface, borderColor: alpha(t.accent, 0.55), borderWidth: 1 }, on && fx({ boxShadow: t.shadow.card })]}
           >
-            <Text style={{ color: on ? t.text : t.textDim, fontWeight: on ? '600' : '400', fontSize: font.small + 1 }} numberOfLines={1}>
+            <Text style={{ color: on ? t.text : t.textDim, fontWeight: on ? '700' : '500', fontSize: font.small + 1 }} numberOfLines={1}>
               {o.label}
             </Text>
           </Pressable>
@@ -228,21 +283,24 @@ export function Segmented<T extends string>({ options, value, onChange, testID }
 
 export function Field(props: TextInputProps & { label?: string }) {
   const t = useTheme();
-  const { label, style, ...rest } = props;
+  const { label, style, onFocus, onBlur, ...rest } = props;
+  const [focused, setFocused] = useState(false);
   return (
     <View style={{ gap: 4 }}>
-      {label && <Text style={{ color: t.textDim, fontSize: font.small }}>{label}</Text>}
+      {label && <Text style={{ color: t.textDim, fontSize: font.small, fontWeight: '600' }}>{label}</Text>}
       <TextInput
         placeholderTextColor={t.textFaint}
         {...rest}
-        style={[styles.field, { color: t.text, backgroundColor: t.surface2, borderColor: t.border }, style]}
+        onFocus={(e) => (setFocused(true), onFocus?.(e))}
+        onBlur={(e) => (setFocused(false), onBlur?.(e))}
+        style={[styles.field, { minHeight: t.sp(TAP), borderRadius: t.r.md, color: t.text, backgroundColor: t.surface2, borderColor: focused ? t.accent : t.border }, style]}
       />
     </View>
   );
 }
 
 /** A simple slider (0..1) with large touch area. */
-export function Slider({ value, onChange, label, testID }: { value: number; onChange: (v: number) => void; label: string; testID?: string }) {
+export function Slider({ value, onChange, label, testID, rainbow }: { value: number; onChange: (v: number) => void; label: string; testID?: string; rainbow?: boolean }) {
   const t = useTheme();
   const [w, setW] = useState(1);
   const wRef = useRef(1);
@@ -260,6 +318,7 @@ export function Slider({ value, onChange, label, testID }: { value: number; onCh
       onPanResponderMove: (_, g) => onChangeRef.current(Math.max(0, Math.min(1, (startX.current + g.dx) / wRef.current))),
     })
   ).current;
+  const v = Math.max(0, Math.min(1, value));
   return (
     <View
       testID={testID}
@@ -268,46 +327,56 @@ export function Slider({ value, onChange, label, testID }: { value: number; onCh
       accessibilityLabel={label}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-valuenow={Math.round(value * 100)}
-      accessibilityValue={{ min: 0, max: 100, now: Math.round(value * 100) }}
+      aria-valuenow={Math.round(v * 100)}
+      accessibilityValue={{ min: 0, max: 100, now: Math.round(v * 100) }}
       accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-      onAccessibilityAction={(e) => onChange(Math.max(0, Math.min(1, value + (e.nativeEvent.actionName === 'increment' ? 0.1 : -0.1))))}
+      onAccessibilityAction={(e) => onChange(Math.max(0, Math.min(1, v + (e.nativeEvent.actionName === 'increment' ? 0.1 : -0.1))))}
       onLayout={(e) => setW(e.nativeEvent.layout.width)}
       style={{ height: TAP, justifyContent: 'center' }}
       {...pan.panHandlers}
     >
-      <View pointerEvents="none" style={{ height: 4, borderRadius: 2, backgroundColor: t.border }}>
-        <View style={{ height: 4, borderRadius: 2, width: `${value * 100}%`, backgroundColor: t.accent }} />
+      <View pointerEvents="none" style={[{ height: 6, borderRadius: 3, backgroundColor: t.surface2, borderWidth: StyleSheet.hairlineWidth, borderColor: t.border }, rainbow ? fx({ backgroundImage: 'linear-gradient(90deg, #ff4d4d, #ffb84d, #f0e84a, #4dd97a, #4dc3ff, #6b6bff, #c24dff, #ff4da6, #ff4d4d)' }) : null]}>
+        {!rainbow && <View style={[{ height: 6, marginTop: -StyleSheet.hairlineWidth, marginLeft: -StyleSheet.hairlineWidth, borderRadius: 3, width: `${v * 100}%`, backgroundColor: t.accent }, fx({ backgroundImage: t.gradient })]} />}
       </View>
-      <View pointerEvents="none" style={[styles.knob, { left: value * w - 12, backgroundColor: t.surface, borderColor: t.accent }]} />
+      <View pointerEvents="none" style={[styles.knob, { left: v * w - 13, backgroundColor: t.surface, borderColor: t.accent }, fx({ boxShadow: t.shadow.glow })]} />
     </View>
   );
 }
 
 export function SectionTitle({ children }: { children: ReactNode }) {
   const t = useTheme();
-  return <Text style={{ color: t.textDim, fontSize: font.tiny + 1, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: space.lg, marginBottom: space.xs }}>{children}</Text>;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: t.sp(space.lg), marginBottom: space.xs }}>
+      <View style={{ width: 14, height: 3, borderRadius: 2, backgroundColor: t.accent }} />
+      <Text style={{ color: t.textDim, fontSize: font.tiny + 1, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' }}>{children}</Text>
+    </View>
+  );
 }
 
 export function Empty({ icon, title, hint }: { icon: IconName; title: string; hint?: string }) {
   const t = useTheme();
   return (
     <View style={{ alignItems: 'center', padding: space.xxl, gap: space.sm }}>
-      <Ionicons name={icon} size={36} color={t.textFaint} />
-      <Text style={{ color: t.textDim, fontSize: font.body, textAlign: 'center' }}>{title}</Text>
-      {!!hint && <Text style={{ color: t.textFaint, fontSize: font.small, textAlign: 'center' }}>{hint}</Text>}
+      <View style={{ width: 68, height: 68, borderRadius: 34, alignItems: 'center', justifyContent: 'center', backgroundColor: alpha(t.accent, 0.12) }}>
+        <Ionicons name={icon} size={30} color={t.accent} />
+      </View>
+      <Text style={{ color: t.text, fontSize: font.body, fontWeight: '600', textAlign: 'center' }}>{title}</Text>
+      {!!hint && <Text style={{ color: t.textDim, fontSize: font.small, textAlign: 'center', maxWidth: 280 }}>{hint}</Text>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  iconBtn: { width: TAP, height: TAP, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
-  btn: { minHeight: TAP, paddingHorizontal: space.lg, borderRadius: radius.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm },
-  btnText: { fontSize: font.body, fontWeight: '600' },
-  chip: { minHeight: 36, paddingHorizontal: space.md, borderRadius: radius.pill, borderWidth: 1, justifyContent: 'center' },
-  item: { minHeight: TAP + 8, flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.sm, borderBottomWidth: StyleSheet.hairlineWidth },
-  seg: { flexDirection: 'row', borderRadius: radius.md, padding: 3, gap: 3 },
-  segItem: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, paddingHorizontal: space.sm },
-  field: { minHeight: TAP, borderRadius: radius.md, paddingHorizontal: space.md, fontSize: font.body, borderWidth: StyleSheet.hairlineWidth },
-  knob: { position: 'absolute', width: 24, height: 24, borderRadius: 12, borderWidth: 2, top: (TAP - 24) / 2 },
+  iconBtn: { width: TAP, height: TAP, alignItems: 'center', justifyContent: 'center' },
+  btn: { paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm },
+  btnText: { fontSize: font.body, fontWeight: '700' },
+  chip: { paddingHorizontal: space.md, borderRadius: 999, borderWidth: 1, justifyContent: 'center' },
+  item: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.sm, borderBottomWidth: StyleSheet.hairlineWidth },
+  itemIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
+  toggle: { width: 50, height: 30, padding: 3, borderWidth: 1, justifyContent: 'center' },
+  toggleKnob: { width: 22, height: 22, borderRadius: 11 },
+  seg: { flexDirection: 'row', padding: 3, gap: 3 },
+  segItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.sm },
+  field: { paddingHorizontal: space.md, fontSize: font.body, borderWidth: 1 },
+  knob: { position: 'absolute', width: 26, height: 26, borderRadius: 13, borderWidth: 3, top: (TAP - 26) / 2 },
 });

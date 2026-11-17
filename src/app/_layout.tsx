@@ -12,6 +12,7 @@ import { getDb } from '../db/client';
 import { CaptureHost } from '../features/capture/capture';
 import { useSettings } from '../store/settings';
 import { DialogHost } from '../ui/Dialogs';
+import { useAppFonts } from '../ui/fonts';
 import { useTheme } from '../ui/theme';
 
 /** App-icon long-press → "Record idea" (iOS and Android). */
@@ -30,6 +31,8 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const t = useTheme();
+  // the bundled typefaces load in a moment; showing the app before then would flash the wrong font
+  const fontsReady = useAppFonts();
 
   useEffect(() => {
     (async () => {
@@ -61,14 +64,14 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: t.bg }}>
       <SafeAreaProvider>
         <StatusBar style={t.dark ? 'light' : 'dark'} />
-        {ready ? (
+        {ready && fontsReady ? (
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.bg }, animation: 'fade' }} />
         ) : (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
             {error ? <Text style={{ color: t.danger, textAlign: 'center' }}>Could not open your songs: {error}</Text> : <ActivityIndicator color={t.accent} />}
           </View>
         )}
-        {ready && <CaptureHost />}
+        {ready && fontsReady && <CaptureHost />}
         <DialogHost />
       </SafeAreaProvider>
     </GestureHandlerRootView>

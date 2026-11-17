@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { create } from 'zustand';
-import { font, radius, space, TAP, useTheme } from './theme';
+import { font, radius, space, TAP, useTheme, displayText } from './theme';
 
 type Request =
   | { kind: 'confirm'; title: string; message?: string; ok: string; danger?: boolean; resolve: (v: boolean) => void }
@@ -95,8 +95,8 @@ export function DialogHost() {
         <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: t.backdrop }]} onPress={() => close(req?.kind === 'confirm' ? false : null)} />
         {req && (
           <View style={styles.center} pointerEvents="box-none">
-            <View style={[styles.box, { backgroundColor: t.surface, borderColor: t.border }]} accessibilityViewIsModal testID="dialog">
-              <Text style={{ color: t.text, fontSize: font.body + 2, fontWeight: '600' }} accessibilityRole="header">
+            <View style={[styles.box, { backgroundColor: t.surface, borderColor: t.border, borderRadius: t.r.xl }, ({ boxShadow: '0 20px 60px rgba(0,0,0,0.35)' } as object)]} accessibilityViewIsModal testID="dialog">
+              <Text style={[{ color: t.text }, displayText(t, font.body + 3)]} accessibilityRole="header">
                 {req.title}
               </Text>
               {!!req.message && <Text style={{ color: t.textDim, fontSize: font.body, marginTop: space.sm }}>{req.message}</Text>}
@@ -110,7 +110,7 @@ export function DialogHost() {
                   placeholderTextColor={t.textFaint}
                   multiline={req.multiline}
                   onSubmitEditing={() => !req.multiline && close(text)}
-                  style={[styles.input, { color: t.text, backgroundColor: t.surface2, borderColor: t.border }, req.multiline && { minHeight: 110, textAlignVertical: 'top', paddingTop: space.md }]}
+                  style={[styles.input, { color: t.text, backgroundColor: t.surface2, borderColor: t.accent, borderRadius: t.r.md }, req.multiline && { minHeight: 110, textAlignVertical: 'top', paddingTop: space.md }]}
                 />
               )}
               {req.kind === 'choose' ? (

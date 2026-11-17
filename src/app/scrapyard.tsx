@@ -8,8 +8,8 @@ import { getDb } from '../db/client';
 import * as repo from '../db/repo';
 import { useSong } from '../store/song';
 import { choose, toast } from '../ui/Dialogs';
-import { Empty, Icon, IconButton, Row } from '../ui/kit';
-import { font, radius, space, TAP, useTheme } from '../ui/theme';
+import { Empty, Icon, IconButton, Row, pageStyle } from '../ui/kit';
+import { font, radius, space, TAP, useTheme, displayText } from '../ui/theme';
 
 export default function Scrapyard() {
   const t = useTheme();
@@ -48,10 +48,10 @@ export default function Scrapyard() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: insets.top }}>
+    <View style={[pageStyle(t), { paddingTop: insets.top }]}>
       <Row style={{ minHeight: TAP + 4, paddingHorizontal: space.xs }}>
         <IconButton icon="arrow-back" label="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace('/library'))} />
-        <Text style={{ flex: 1, color: t.text, fontSize: font.title, fontWeight: '700' }} accessibilityRole="header">
+        <Text style={[{ flex: 1, color: t.text }, displayText(t, font.title + 2)]} accessibilityRole="header">
           Scrapyard
         </Text>
       </Row>

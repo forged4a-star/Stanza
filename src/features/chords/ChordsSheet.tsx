@@ -23,7 +23,7 @@ import { findLine, useSong } from '../../store/song';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { askText, toast } from '../../ui/Dialogs';
 import { Button, Chip, Icon, IconButton, Row, SectionTitle, Segmented, ToggleRow } from '../../ui/kit';
-import { font, radius, space, useTheme } from '../../ui/theme';
+import { displayText, font, radius, space, useTheme } from '../../ui/theme';
 import { GuitarDiagram, PianoKeys } from './ChordDiagram';
 import { VolumeSlider } from './VolumeSlider';
 import { FN_COLOURS } from './ChordPicker';
@@ -117,7 +117,7 @@ function BpmControl() {
             returnKeyType="done"
             maxLength={3}
             selectTextOnFocus
-            style={{ color: t.text, fontSize: 40, fontWeight: '700', textAlign: 'center', minWidth: 120, paddingVertical: 0 }}
+            style={[{ color: t.text, textAlign: 'center', minWidth: 120, paddingVertical: 0 }, displayText(t, 44)]}
             accessibilityLabel="Tempo in beats per minute. Type a number."
             testID="player-bpm"
           />
@@ -170,7 +170,7 @@ function PlayTab() {
         <Pressable
           onPress={() => (player.playing ? stopPlayer() : playScope(scope))}
           disabled={!playable.length}
-          style={[styles.bigPlay, { backgroundColor: playable.length ? t.accent : t.surface2 }]}
+          style={[styles.bigPlay, { backgroundColor: playable.length ? t.accent : t.surface2 }, playable.length ? ({ backgroundImage: t.gradient, boxShadow: t.shadow.glow } as object) : null]}
           accessibilityRole="button"
           accessibilityLabel={player.playing ? 'Stop' : 'Play'}
           testID="player-play"

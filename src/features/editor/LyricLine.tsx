@@ -11,7 +11,7 @@ import type { Mark } from '../../core/phonetics/sound';
 import { useSong } from '../../store/song';
 import { toast } from '../../ui/Dialogs';
 import { Icon } from '../../ui/kit';
-import { font, space, useTheme, type Theme } from '../../ui/theme';
+import { font, lyricText, space, useTheme, type Theme } from '../../ui/theme';
 import type { LineMeta } from './useSongAnalysis';
 import { useCollab } from '../../collab/collab';
 
@@ -56,7 +56,7 @@ function markColors(t: Theme, marks: Mark[] | undefined): { bg?: string; underli
 function LyricLineImpl({ line, meta, display, placeholder, testID }: Props) {
   const t = useTheme();
   const [editing, setEditing] = useState(false);
-  const [height, setHeight] = useState(font.lyricLine);
+  const [height, setHeight] = useState(t.lyric.lineHeight);
   const inputRef = useRef<TextInputInstance>(null);
   const selection = useRef({ start: 0, end: 0 });
   const focus = useSong((s) => (s.focus?.lineId === line.id ? s.focus : null));
@@ -104,7 +104,7 @@ function LyricLineImpl({ line, meta, display, placeholder, testID }: Props) {
   const commentCount = useCollab((c) => c.comments.filter((x) => x.lineId === line.id && !x.resolved).length);
   const count = meta?.syllables ?? 0;
   const mismatch = meta?.mismatch;
-  const lyricStyle = [styles.lyric, { color: t.text }];
+  const lyricStyle = [styles.lyric, lyricText(t), { color: t.text }];
 
   let body;
   if (display.showStress || line.chords.length > 0 || (display.showChords && line.text.trim())) {
@@ -118,7 +118,7 @@ function LyricLineImpl({ line, meta, display, placeholder, testID }: Props) {
   }
 
   return (
-    <View style={styles.row} testID={testID}>
+    <View style={[styles.row, { minHeight: t.lyric.lineHeight + 6 }]} testID={testID}>
       <View style={styles.left}>
         {line.locked ? <Icon name="lock-closed" size={13} color={t.textFaint} /> : line.alts.length ? <Text style={[styles.badge, { color: t.textDim, borderColor: t.border }]}>{line.alts.length + 1}</Text> : null}
         {commentCount > 0 && <Icon name="chatbubble" size={11} color={t.accent} />}
@@ -128,7 +128,7 @@ function LyricLineImpl({ line, meta, display, placeholder, testID }: Props) {
           {body}
         </Pressable>
       </Animated.View>
-      <Pressable style={styles.margin} onPress={() => mismatch && toast(`${count} syllables here, ${mismatch.other} in ${mismatch.where}`)} accessibilityLabel={`${count} syllables${mismatch ? `, differs from ${mismatch.where}` : ''}`}>
+      <Pressable style={[styles.margin, { minHeight: t.lyric.lineHeight }]} onPress={() => mismatch && toast(`${count} syllables here, ${mismatch.other} in ${mismatch.where}`)} accessibilityLabel={`${count} syllables${mismatch ? `, differs from ${mismatch.where}` : ''}`}>
         {display.showSyllables && count > 0 && (
           <Text style={[styles.count, { color: mismatch ? t.warn : t.textFaint, fontWeight: mismatch ? '700' : '400' }]} testID={testID ? testID + '-count' : undefined}>
             {count}
@@ -203,7 +203,7 @@ function WordTapText({ text, lineId, display }: { text: string; lineId: string; 
  * dots, aligned to each syllable.
  */
 function SyllableGrid({ line, meta, display, t }: { line: Line; meta: LineMeta | undefined; display: LineDisplay; t: Theme }) {
-  if (!meta || !line.text) return <Text style={[styles.lyric, { color: t.textFaint }]}> </Text>;
+  if (!meta || !line.text) return <Text style={[styles.lyric, lyricText(t), { color: t.textFaint }]}> </Text>;
   const { info } = meta;
   const chordAt = new Map(line.chords.map((c) => [c.syl, c.chord]));
   const words: React.ReactNode[] = [];
@@ -227,7 +227,7 @@ function SyllableGrid({ line, meta, display, t }: { line: Line; meta: LineMeta |
               </Text>
             </Pressable>
           )}
-          <Text style={[styles.lyric, { color: t.text }]}>
+          <Text style={[styles.lyric, lyricText(t), { color: t.text }]}>
             {k === 0 && lead ? lead : null}
             <Text style={[bg ? { backgroundColor: bg, borderRadius: 3 } : null, underline ? { textDecorationLine: 'underline', textDecorationColor: underline } : null]}>
               {line.text.slice(s.start, end).replace(/\s+$/, '')}
@@ -254,7 +254,7 @@ function SyllableGrid({ line, meta, display, t }: { line: Line; meta: LineMeta |
     );
     pos = (info.words[wi + 1]?.start ?? line.text.length);
   });
-  if (!info.words.length) return <Text style={[styles.lyric, { color: t.text }]}>{line.text}</Text>;
+  if (!info.words.length) return <Text style={[styles.lyric, lyricText(t), { color: t.text }]}>{line.text}</Text>;
   return <View style={styles.grid}>{words}</View>;
 }
 

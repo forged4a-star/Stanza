@@ -11,7 +11,7 @@ import type { SectionWithLines } from '../../core/model';
 import { useSong } from '../../store/song';
 import { toast } from '../../ui/Dialogs';
 import { Icon } from '../../ui/kit';
-import { font, useTheme } from '../../ui/theme';
+import { font, lyricText, useTheme } from '../../ui/theme';
 import { caret, type LineDisplay } from './LyricLine';
 import { scrollBus } from './scrollBus';
 import type { SongAnalysis } from './useSongAnalysis';
@@ -39,7 +39,7 @@ export function SectionInput({ section, index, analysis, display, onDone }: Prop
   let total = 0;
   lines.forEach((_, i) => {
     tops.push(total);
-    total += heights[i] ?? font.lyricLine;
+    total += heights[i] ?? t.lyric.lineHeight;
   });
 
   const offsetOf = (lineId: string, pos: number) => {
@@ -67,7 +67,7 @@ export function SectionInput({ section, index, analysis, display, onDone }: Prop
     const { i } = lineAt(sel.current);
     node.measureInWindow((_x, y) => {
       const lineTop = y + (tops[i] ?? 0);
-      const lineBottom = lineTop + (heights[i] ?? font.lyricLine);
+      const lineBottom = lineTop + (heights[i] ?? t.lyric.lineHeight);
       const limit = scrollBus.visibleBottom() - 16;
       if (lineBottom > limit) scrollBus.by(lineBottom - limit + 40);
       else if (lineTop < 110) scrollBus.by(lineTop - 150);
@@ -116,12 +116,12 @@ export function SectionInput({ section, index, analysis, display, onDone }: Prop
           {lines.map((l, i) => (
             <Text
               key={l.id}
-              style={styles.lyric}
+              style={[styles.lyric, lyricText(t)]}
               onLayout={(e) => {
                 const h = e.nativeEvent.layout.height;
                 setHeights((cur) => {
                   if (Math.abs((cur[i] ?? 0) - h) < 0.5 && cur.length === lines.length) return cur;
-                  const next = lines.map((_, k) => cur[k] ?? font.lyricLine);
+                  const next = lines.map((_, k) => cur[k] ?? t.lyric.lineHeight);
                   next[i] = h;
                   return next;
                 });
@@ -161,7 +161,7 @@ export function SectionInput({ section, index, analysis, display, onDone }: Prop
           autoCorrect
           placeholder="Start writing…"
           placeholderTextColor={t.textFaint}
-          style={[styles.lyric, styles.input, { color: t.text, height: Math.max(font.lyricLine, total) + 6 }]}
+          style={[styles.lyric, lyricText(t), styles.input, { color: t.text, height: Math.max(t.lyric.lineHeight, total) + 6 }]}
           accessibilityLabel="Lyrics of this section"
         />
       </View>
@@ -170,7 +170,7 @@ export function SectionInput({ section, index, analysis, display, onDone }: Prop
           const meta = analysis?.lines.get(l.id);
           if (!meta || !meta.syllables) return null;
           return (
-            <View key={l.id} style={[styles.abs, styles.marginRow, { top: tops[i] }]}>
+            <View key={l.id} style={[styles.abs, styles.marginRow, { top: tops[i], height: t.lyric.lineHeight }]}>
               {display.showSyllables && (
                 <Text testID={`line-${index}-${i}-count`} style={{ fontSize: font.small, color: meta.mismatch ? t.warn : t.textFaint, fontWeight: meta.mismatch ? '700' : '400' }}>
                   {meta.syllables}

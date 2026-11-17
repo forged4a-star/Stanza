@@ -4,6 +4,7 @@ import type { SectionWithLines } from '../../core/model';
 import { useSong } from '../../store/song';
 import { Icon } from '../../ui/kit';
 import { font, radius, space, useTheme } from '../../ui/theme';
+import { alpha } from '../../ui/color';
 import { LyricLine, type LineDisplay } from './LyricLine';
 import type { SongAnalysis } from './useSongAnalysis';
 import { registerDropZone } from './dropZones';
@@ -41,11 +42,13 @@ function SectionBlockImpl({ section, name, analysis, display, onMenu, onRecord, 
       <View style={styles.header}>
         <Pressable onPress={toggle} style={styles.headerTitle} accessibilityRole="button" accessibilityLabel={`${name}, ${section.collapsed ? 'collapsed' : 'expanded'}`} accessibilityHint="Tap to collapse or expand">
           <Icon name={section.collapsed ? 'chevron-forward' : 'chevron-down'} size={15} color={t.textFaint} />
-          <Text style={[styles.name, { color: t.textDim }]} numberOfLines={1}>
-            {name}
-          </Text>
+          <View style={[styles.pill, { backgroundColor: alpha(t.accent, 0.14), borderRadius: t.r.pill }]}>
+            <Text style={[styles.name, { color: t.chord }]} numberOfLines={1}>
+              {name}
+            </Text>
+          </View>
           {!!section.feeling && (
-            <Text style={[styles.feeling, { color: t.textFaint }]} numberOfLines={1}>
+            <Text style={[styles.feeling, { color: t.textDim }, t.fonts.display ? { fontFamily: t.fonts.display, fontStyle: 'normal' } : null]} numberOfLines={1}>
               {section.feeling}
             </Text>
           )}
@@ -86,7 +89,8 @@ const styles = StyleSheet.create({
   block: { marginBottom: space.xl, borderRadius: radius.md },
   header: { flexDirection: 'row', alignItems: 'center', minHeight: 40 },
   headerTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingLeft: 4 },
-  name: { fontSize: font.small, fontWeight: '700', letterSpacing: 0.9, textTransform: 'uppercase' },
+  pill: { paddingHorizontal: 10, paddingVertical: 3 },
+  name: { fontSize: font.small - 1, fontWeight: '700', letterSpacing: 0.9, textTransform: 'uppercase' },
   feeling: { fontSize: font.small, fontStyle: 'italic', flexShrink: 1 },
   hBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   collapsed: { paddingLeft: 22, minHeight: 36, justifyContent: 'center' },

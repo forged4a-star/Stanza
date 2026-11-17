@@ -12,25 +12,28 @@ import { VolumeSlider } from '../features/chords/VolumeSlider';
 import { engineStats, previewChord } from '../audio/engine';
 import { useEffect, useState } from 'react';
 import { loadSyncConfig, runSync, saveSyncConfig, startAutoSync, useSync } from '../sync/runner';
-import { Button, Field } from '../ui/kit';
+import { Button, Field, pageStyle } from '../ui/kit';
 import { IconButton, ListItem, Row, SectionTitle, Segmented, ToggleRow } from '../ui/kit';
-import { font, space, TAP, useTheme } from '../ui/theme';
+import { font, space, TAP, useTheme, displayText } from '../ui/theme';
 
 export default function SettingsScreen() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const s = useSettings();
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: insets.top }}>
+    <View style={[pageStyle(t), { paddingTop: insets.top }]}>
       <Row style={{ minHeight: TAP + 4, paddingHorizontal: space.xs }}>
         <IconButton icon="arrow-back" label="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
-        <Text style={{ flex: 1, color: t.text, fontSize: font.title, fontWeight: '700' }} accessibilityRole="header">
+        <Text style={[{ flex: 1, color: t.text }, displayText(t, font.title + 2)]} accessibilityRole="header">
           Settings
         </Text>
       </Row>
       <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
         <View style={{ paddingHorizontal: space.lg }}>
           <SectionTitle>Appearance</SectionTitle>
+        </View>
+        <ListItem icon="color-palette-outline" title="Look & feel" subtitle="Looks, colours, fonts, shapes. Make it yours." onPress={() => router.push('/appearance')} testID="open-appearance" />
+        <View style={{ paddingHorizontal: space.lg, paddingTop: space.sm }}>
           <Segmented
             value={s.theme}
             onChange={(v) => s.set({ theme: v })}
