@@ -90,6 +90,27 @@ const ROW = 18;
       assert.match(await id('chord-grid-0').innerText(), /\bC\b/);
     });
 
+    await check('write to the tune: your line is checked against the notes, with a plain summary', async () => {
+      await id('melody-fit-0').click();
+      await id('fit-sheet').waitFor();
+      await page.waitForTimeout(450);
+      assert.equal(await id('fit-input-0').inputValue(), 'beautiful morning'); // starts from the line you have
+      assert.match(await id('fit-summary-0').innerText(), /5 syllables for 4 notes.*1 too many/);
+      assert.equal(await page.locator('[data-testid^="fit-slot-0-"]').count(), 4);
+    });
+
+    await check('a line that fits says so; using it writes the words and links them to the notes', async () => {
+      await id('fit-input-0').fill('moon rose high now');
+      await page.waitForTimeout(250);
+      assert.match(await id('fit-summary-0').innerText(), /Fits the tune.*4 syllables for 4 notes/);
+      assert.equal(await id('fit-syl-0-0').innerText(), 'moon');
+      await id('fit-use').click();
+      await page.waitForTimeout(600);
+      assert.match(await id('section-0').innerText(), /moon rose high now/);
+      const labels = await id('melody-0').evaluate((el) => [...el.querySelectorAll('[data-testid^="note-0-"]')].map((n) => n.getAttribute('aria-label')));
+      assert.match(labels[0], /"moon"/);
+    });
+
     assert.deepEqual(errors.filter((e) => !/favicon|DevTools|Download the React/i.test(e)), []);
     console.log('melody e2e passed');
   } catch (e) {
