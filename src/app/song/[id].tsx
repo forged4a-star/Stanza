@@ -338,7 +338,7 @@ export default function SongPage() {
       {/* the other tabs are full pages */}
       <SheetInline.Provider value>
         <ChordsSheet visible={tab === 'music'} onClose={backToWrite} />
-        <TakesSheet visible={tab === 'takes'} onClose={backToWrite} header={<TakesHeader inboxCount={inboxCount} onInbox={() => setSheet('inbox')} />} />
+        <TakesSheet visible={tab === 'takes'} onClose={backToWrite} header={<TakesHeader inboxCount={inboxCount} onInbox={() => { setTab('write'); setSheet('inbox'); }} />} />
         <ShapeSheet visible={tab === 'shape'} onClose={backToWrite} header={<ShapeHeader onOpen={openFromShape} />} />
         <SongSheet visible={tab === 'song'} onClose={backToWrite} onOpen={openFromSongSheet} />
       </SheetInline.Provider>
