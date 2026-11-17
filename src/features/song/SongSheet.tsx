@@ -176,6 +176,7 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
               testID="edit-tags"
             />
             <ShareItem />
+            <ListItem icon="radio-button-on-outline" title="Record the full song" subtitle="One take, with your words and chords scrolling along" onPress={async () => { await flushSaves(); onClose(); router.push(`/take/${doc!.song.id}`); }} testID="open-full-take" />
             <ListItem icon="albums-outline" title="Constraint cards" subtitle={card ? `${card.title}: ${card.breaks === 0 ? 'all lines follow it' : card.breaks + ' lines break it'}` : 'Write inside a rule, like only one-syllable words'} onPress={() => onOpen('cards')} testID="open-cards" />
             <ListItem icon="git-network-outline" title="Rhyme web" subtitle="Families of rhymes, and line endings that rhyme with nothing" onPress={() => onOpen('web')} testID="open-web" />
             <ListItem icon="pulse-outline" title="Song shape" subtitle="Feeling map, verse/chorus contrast, questions" onPress={() => onOpen('shape')} testID="open-shape" />

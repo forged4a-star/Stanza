@@ -27,3 +27,25 @@ export function scrollVelocity(maxOffset: number, seconds: number, speed: number
 }
 
 export const clampSpeed = (s: number) => Math.min(3, Math.max(0.25, Math.round(s * 20) / 20));
+
+/** Seconds at which each section starts and ends, using the same pacing as songSeconds. */
+export function sectionBounds(doc: SongDoc): { start: number; end: number }[] {
+  const bar = barSeconds(doc);
+  const out: { start: number; end: number }[] = [];
+  let at = 0;
+  for (const s of doc.sections) {
+    const lines = s.lines.filter((l) => l.text.trim()).length;
+    const bars = Math.max(s.bars.length, lines * 2, lines || s.bars.length ? 1 : 0);
+    out.push({ start: at, end: at + bars * bar });
+    at += bars * bar;
+  }
+  return out;
+}
+
+/** Which section the song is in after `elapsed` seconds (the last one once it runs past the end). */
+export function sectionAt(doc: SongDoc, elapsed: number): number {
+  const b = sectionBounds(doc);
+  if (!b.length) return 0;
+  const i = b.findIndex((x) => elapsed < x.end);
+  return i < 0 ? b.length - 1 : i;
+}

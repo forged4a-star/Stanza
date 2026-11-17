@@ -31,6 +31,8 @@ export interface CaptureTarget {
   lineId?: string | null;
   /** what the take is "of", used in its title: "Chorus", "Verse 2 · line 3", "Idea" */
   label: string;
+  /** the caller shows its own recording controls, so the floating bar stays hidden */
+  hideBar?: boolean;
 }
 
 interface CaptureStore {
@@ -161,7 +163,7 @@ export function CaptureHost() {
     }
   }
 
-  if (phase === 'idle') return null;
+  if (phase === 'idle' || target?.hideBar) return null;
   return (
     <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { justifyContent: 'flex-end' }]}>
       <View

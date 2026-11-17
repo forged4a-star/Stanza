@@ -7,11 +7,13 @@ import { getDb } from '../../db/client';
 import * as repo from '../../db/repo';
 import { decodeStored } from '../../audio/decode';
 import { contourOf, wordMoves, type Contour } from '../../core/dsp/contour';
-import { findLine, useSong } from '../../store/song';
+import { router } from 'expo-router';
+import { findLine, flushSaves, useSong } from '../../store/song';
 import { ContourView } from './ContourView';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { askText, choose, confirm, toast } from '../../ui/Dialogs';
 import { Empty, Icon, IconButton, Segmented } from '../../ui/kit';
+import { alpha } from '../../ui/color';
 import { font, radius, space, useTheme } from '../../ui/theme';
 import { exportTake } from '../export/exportActions';
 import { startCapture } from '../capture/capture';
@@ -188,6 +190,19 @@ export function TakesSheet({ visible, onClose }: { visible: boolean; onClose: ()
         ) : (
           list.map((r) => <TakeRow key={r.id} rec={r} player={player} context={where(r)} onChanged={() => void useSong.getState().reloadRecordings()} />)
         )}
+        <Pressable
+          onPress={async () => {
+            await flushSaves();
+            onClose();
+            router.push(`/take/${doc.song.id}`);
+          }}
+          style={[styles.newTake, { borderColor: t.accent, borderStyle: 'solid', backgroundColor: alpha(t.accent, 0.1) }]}
+          accessibilityRole="button"
+          testID="record-full"
+        >
+          <Icon name="radio-button-on" size={18} color={t.record} />
+          <Text style={{ color: t.text, fontSize: font.body, fontWeight: '700' }}>Record the full song</Text>
+        </Pressable>
         <Pressable
           onPress={() => {
             onClose();

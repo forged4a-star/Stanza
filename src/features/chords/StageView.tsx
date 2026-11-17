@@ -93,28 +93,7 @@ export function StagePage({ doc, onClose }: { doc: SongDoc; onClose: () => void 
           onScrollBeginDrag={() => setRunning(false)}
           testID="perform-scroll"
         >
-          {doc.sections.map((s, i) => (
-            <View key={s.id} style={{ marginBottom: size }}>
-              <Text style={{ color: t.textDim, fontSize: size * 0.5, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>{names[i]}</Text>
-              {showChords && s.bars.length > 0 && (
-                <Text style={{ color: t.chord, fontSize: size * 0.8, fontWeight: '700', marginBottom: 6 }}>{s.bars.map((b) => b.chords.map(label).join(' ') || '·').join('  |  ')}</Text>
-              )}
-              {s.lines.map((l) =>
-                !l.text.trim() ? (
-                  <View key={l.id} style={{ height: size * 0.8 }} />
-                ) : (
-                  <View key={l.id} style={styles.line}>
-                    {(piecesOf(l).length ? piecesOf(l) : [{ syl: 0, text: l.text, chord: undefined, wordSyls: [] }]).map((p, k) => (
-                      <View key={k} style={{ alignItems: 'flex-start', justifyContent: 'flex-end' }}>
-                        <Text style={{ color: t.chord, fontWeight: '800', fontSize: size * 0.8, minHeight: size * 1.1 }}>{showChords && p.chord ? label(p.chord) : ' '}</Text>
-                        <Text style={{ color: t.text, fontSize: size, lineHeight: size * 1.3 }}>{p.text}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )
-              )}
-            </View>
-          ))}
+          <StageSections doc={doc} names={names} size={size} showChords={showChords} label={label} />
         </ScrollView>
         <View style={[styles.controls, { backgroundColor: t.surface, borderTopColor: t.border, paddingBottom: insets.bottom + space.sm }]}>
           {hasChords && <Button compact title={showChords ? 'Chords on' : 'Chords off'} onPress={() => setShowChords((v) => !v)} testID="stage-chords" />}
@@ -137,6 +116,38 @@ export function StagePage({ doc, onClose }: { doc: SongDoc; onClose: () => void 
           <Button kind="primary" icon={running ? 'pause' : 'play'} title={running ? 'Pause' : 'Scroll'} onPress={() => setRunning((r) => !r)} testID="perform-play" style={{ minWidth: 110 }} />
         </View>
       </View>
+    </>
+  );
+}
+
+
+/** The song as big readable lyrics with chords over the words. Shared by performance mode and the full-song take. */
+export function StageSections({ doc, names, size, showChords, label, activeIndex }: { doc: SongDoc; names: string[]; size: number; showChords: boolean; label: (c: string) => string; activeIndex?: number }) {
+  const t = useTheme();
+  return (
+    <>
+      {doc.sections.map((s, i) => (
+        <View key={s.id} style={{ marginBottom: size, opacity: activeIndex === undefined || activeIndex === i ? 1 : 0.45 }} testID={`stage-section-${i}`}>
+          <Text style={{ color: activeIndex === i ? t.chord : t.textDim, fontSize: size * 0.5, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>{names[i]}</Text>
+          {showChords && s.bars.length > 0 && (
+            <Text style={{ color: t.chord, fontSize: size * 0.8, fontWeight: '700', marginBottom: 6 }}>{s.bars.map((b) => b.chords.map(label).join(' ') || '·').join('  |  ')}</Text>
+          )}
+          {s.lines.map((l) =>
+            !l.text.trim() ? (
+              <View key={l.id} style={{ height: size * 0.8 }} />
+            ) : (
+              <View key={l.id} style={styles.line}>
+                {(piecesOf(l).length ? piecesOf(l) : [{ syl: 0, text: l.text, chord: undefined, wordSyls: [] }]).map((p, k) => (
+                  <View key={k} style={{ alignItems: 'flex-start', justifyContent: 'flex-end' }}>
+                    <Text style={{ color: t.chord, fontWeight: '800', fontSize: size * 0.8, minHeight: size * 1.1 }}>{showChords && p.chord ? label(p.chord) : ' '}</Text>
+                    <Text style={[{ color: t.text, fontSize: size, lineHeight: size * 1.3 }, t.fonts.lyric ? { fontFamily: t.fonts.lyric } : null]}>{p.text}</Text>
+                  </View>
+                ))}
+              </View>
+            )
+          )}
+        </View>
+      ))}
     </>
   );
 }
