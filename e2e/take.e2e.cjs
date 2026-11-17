@@ -74,11 +74,11 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081';
       await page.waitForTimeout(500);
       assert.match(await id('takes-sheet').innerText(), /Full song take 1/);
       assert.match(await id('takes-sheet').innerText(), /Whole song/);
-      await id('record-full').waitFor();
+      await id('open-full-take').waitFor();
     });
 
     await check('leaving during a recording asks what to do with it', async () => {
-      await id('record-full').click();
+      await id('open-full-take').click();
       await id('full-take').waitFor({ timeout: 30000 });
       await id('take-countin').click(); // no count-in
       await id('take-start').click();
