@@ -26,7 +26,7 @@ export interface Suggestion {
  * approximating published pop/rock corpus statistics (I→V, I→IV, V→I, IV→I,
  * vi→IV, ii→V dominate).
  */
-const MAJOR_T: number[][] = [
+export const MAJOR_T: number[][] = [
   /* I   */ [0, 0.08, 0.04, 0.3, 0.3, 0.22, 0.02],
   /* ii  */ [0.12, 0, 0.04, 0.16, 0.55, 0.1, 0.03],
   /* iii */ [0.08, 0.06, 0, 0.36, 0.12, 0.36, 0.02],
@@ -37,7 +37,7 @@ const MAJOR_T: number[][] = [
 ];
 
 /** Natural minor degrees (0 = i … 6 = VII). */
-const MINOR_T: number[][] = [
+export const MINOR_T: number[][] = [
   /* i   */ [0, 0.04, 0.16, 0.2, 0.16, 0.26, 0.18],
   /* ii° */ [0.2, 0, 0.06, 0.06, 0.6, 0.04, 0.04],
   /* III */ [0.12, 0.02, 0, 0.16, 0.08, 0.26, 0.36],

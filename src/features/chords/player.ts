@@ -34,7 +34,7 @@ export function melodyEvents(doc: SongDoc, sectionIds: string[]) {
 
 export function playScope(
   scope: string,
-  opts: { melody?: boolean; bars?: ChordBar[]; pattern?: string; customStrums?: CustomStrum[]; loop?: boolean } = {}
+  opts: { melody?: boolean; bars?: ChordBar[]; pattern?: string; customStrums?: CustomStrum[]; loop?: boolean; /** play this section's melody over the given chords */ melodyOf?: string } = {}
 ) {
   const doc = useSong.getState().doc;
   if (!doc) return;
@@ -53,7 +53,7 @@ export function playScope(
       }
     }
   }
-  const extra = opts.melody !== false && !opts.bars ? melodyEvents(doc, sections.map((s) => s.id)) : [];
+  const extra = opts.melodyOf ? melodyEvents(doc, [opts.melodyOf]) : opts.melody !== false && !opts.bars ? melodyEvents(doc, sections.map((s) => s.id)) : [];
   const { loop } = usePlayer.getState();
   const sched = startTransport(bars, {
     bpm: doc.song.bpm,

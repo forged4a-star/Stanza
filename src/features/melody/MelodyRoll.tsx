@@ -21,6 +21,7 @@ import { useSong } from '../../store/song';
 import { choose, confirm, toast } from '../../ui/Dialogs';
 import { NO_SELECT } from '../../ui/DraggableList';
 import { Icon, IconButton } from '../../ui/kit';
+import { HarmonizeSheet } from './HarmonizeSheet';
 import { font, radius, space, useTheme } from '../../ui/theme';
 import { togglePlay, usePlayer } from '../chords/player';
 
@@ -40,6 +41,7 @@ function MelodyRollImpl({ section, index }: { section: SectionWithLines; index: 
   const scaleLock = useMelodyUI((s) => s.scaleLock);
   const playing = usePlayer((p) => p.playing && p.scope === section.id);
   const [humming, setHumming] = useState(false);
+  const [sheet, setSheet] = useState<null | 'harmonize'>(null);
   const humStop = useRef<(() => void) | null>(null);
   const humBuf = useRef<Float32Array[]>([]);
   const humRate = useRef(22050);
@@ -168,6 +170,7 @@ function MelodyRollImpl({ section, index }: { section: SectionWithLines; index: 
       <View style={styles.bar}>
         <IconButton icon={playing ? 'stop' : 'play'} label={playing ? 'Stop' : 'Play melody with chords'} size={18} onPress={() => togglePlay(section.id)} testID={`melody-play-${index}`} />
         <IconButton icon={humming ? 'stop-circle' : 'mic-outline'} label={humming ? 'Stop and turn the hum into notes' : 'Hum a melody'} size={18} color={humming ? t.record : undefined} onPress={humToggle} testID={`melody-hum-${index}`} />
+        <IconButton icon="color-wand-outline" label="Harmonize: find chords for this melody" size={18} onPress={() => setSheet('harmonize')} testID={`melody-harmonize-${index}`} />
         <IconButton icon="link-outline" label="Link notes to lyrics in order" size={18} onPress={() => (save(autoLink(melody, section.lines)), toast('Notes linked to syllables in order'))} />
         <Pressable onPress={() => useMelodyUI.setState({ scaleLock: !scaleLock })} style={[styles.lock, { borderColor: scaleLock ? t.accent : t.border }]} accessibilityRole="switch" accessibilityState={{ checked: scaleLock }} accessibilityLabel="Scale lock" testID="scale-lock">
           <Text style={{ color: scaleLock ? t.accent : t.textDim, fontSize: font.tiny, fontWeight: '700' }}>{key ? `${doc.song.key} scale` : 'no key'}</Text>
@@ -247,6 +250,7 @@ function MelodyRollImpl({ section, index }: { section: SectionWithLines; index: 
       )}
       {issueBy.get(selected ?? '') && <Text style={{ color: t.warn, fontSize: font.small, paddingHorizontal: space.sm, paddingBottom: space.xs }}>{issueBy.get(selected!)!.message}</Text>}
       {humming && <Text style={{ color: t.record, fontSize: font.small, paddingHorizontal: space.sm, paddingBottom: space.xs }}>Listening… hum the melody, then press stop.</Text>}
+      <HarmonizeSheet visible={sheet === 'harmonize'} onClose={() => setSheet(null)} section={section} />
     </View>
   );
 }
