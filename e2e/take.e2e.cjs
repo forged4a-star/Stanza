@@ -53,6 +53,15 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081';
       assert.match(await id('full-take').innerText(), /Whole song/);
     });
 
+    await check('"Chords from this take" is offered right after recording', async () => {
+      await id('take-chart').click();
+      await id('chart-sheet').waitFor();
+      // the fake microphone plays a beep, not chords: either a chart or a polite "no clear chords" is fine
+      await page.waitForFunction(() => !!document.querySelector('[data-testid="chart-timeline"], [data-testid="chart-empty"]'), null, { timeout: 60000 });
+      await page.getByRole('button', { name: 'Close sheet' }).last().click();
+      await page.waitForTimeout(400);
+    });
+
     await check('it is in the Takes list too, and you can record another', async () => {
       await id('take-again').click();
       await id('take-start').waitFor();

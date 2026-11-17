@@ -17,6 +17,7 @@ import { displayText, font, space, useTheme } from '../../ui/theme';
 import { StageSections } from '../chords/StageView';
 import { scrollVelocity, sectionAt, songSeconds } from '../chords/stage';
 import { cancelCapture, startCapture, stopCapture, useCapturePhase } from '../capture/capture';
+import { ChartSheet } from '../takes/ChartSheet';
 import { TakeRow, useTakePlayer } from '../takes/TakesSheet';
 
 const COUNT_IN_BEATS = 4;
@@ -28,7 +29,7 @@ const fmt = (ms: number) => {
 
 type Stage = 'ready' | 'count' | 'recording' | 'saving' | 'done';
 
-export function FullTake({ doc, onClose, onChartRequest }: { doc: SongDoc; onClose: () => void; onChartRequest?: (take: Recording) => void }) {
+export function FullTake({ doc, onClose }: { doc: SongDoc; onClose: () => void }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const phase = useCapturePhase();
@@ -42,6 +43,7 @@ export function FullTake({ doc, onClose, onChartRequest }: { doc: SongDoc; onClo
   const [beat, setBeat] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [take, setTake] = useState<Recording | null>(null);
+  const [chartTake, setChartTake] = useState<Recording | null>(null);
   const size = 26;
   const player = useTakePlayer();
 
@@ -231,12 +233,13 @@ export function FullTake({ doc, onClose, onChartRequest }: { doc: SongDoc; onClo
             {take ? <TakeRow rec={take} player={player} onChanged={() => undefined} context="Whole song" /> : <Text style={{ color: t.textDim }}>The take is in your Takes list.</Text>}
             <Row style={{ flexWrap: 'wrap' }}>
               <Button compact title="Record again" icon="refresh" onPress={() => (setStage('ready'), setBeat(0))} testID="take-again" />
-              {take && onChartRequest && <Button compact title="Chords from this take" icon="musical-notes-outline" onPress={() => onChartRequest(take)} testID="take-chart" />}
+              {take && <Button compact title="Chords from this take" icon="musical-notes-outline" onPress={() => setChartTake(take)} testID="take-chart" />}
               <Button compact kind="primary" title="Done" onPress={onClose} testID="take-done" />
             </Row>
           </>
         )}
       </View>
+      <ChartSheet take={chartTake} doc={doc} onClose={() => setChartTake(null)} />
     </View>
   );
 }

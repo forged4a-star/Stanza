@@ -9,6 +9,7 @@ import { decodeStored } from '../../audio/decode';
 import { contourOf, wordMoves, type Contour } from '../../core/dsp/contour';
 import { router } from 'expo-router';
 import { findLine, flushSaves, useSong } from '../../store/song';
+import { ChartSheet } from './ChartSheet';
 import { ContourView } from './ContourView';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { askText, choose, confirm, toast } from '../../ui/Dialogs';
@@ -56,6 +57,7 @@ export function TakeRow({ rec, player, onChanged, context }: { rec: Recording; p
   const lineText = rec.lineId && doc ? findLine(doc, rec.lineId)?.line.text ?? '' : '';
   const [ghost, setGhost] = useState<{ state: 'loading' | 'none' | 'error' | 'ready'; contour?: Contour }>({ state: 'none' });
   const [showGhost, setShowGhost] = useState(false);
+  const [chart, setChart] = useState(false);
   const toggleGhost = async () => {
     if (showGhost) return setShowGhost(false);
     setShowGhost(true);
@@ -75,11 +77,13 @@ export function TakeRow({ rec, player, onChanged, context }: { rec: Recording; p
     const v = await choose(rec.title, [
       { label: 'Rename', value: 'rename' },
       { label: rec.starred ? 'Unstar' : 'Star as best take', value: 'star' },
+      ...(doc && rec.songId === doc.song.id ? [{ label: 'Chords from this take', value: 'chart' }] : []),
       { label: 'Edit transcript', value: 'transcript' },
       { label: 'Share audio', value: 'share' },
       ...(rec.songId ? [{ label: 'Move to Inbox', value: 'inbox' }] : []),
       { label: 'Delete take', value: 'delete', danger: true },
     ]);
+    if (v === 'chart') return setChart(true);
     const db = await getDb();
     if (v === 'rename') {
       const name = await askText('Take name', rec.title);
@@ -130,6 +134,7 @@ export function TakeRow({ rec, player, onChanged, context }: { rec: Recording; p
       <IconButton icon="pulse-outline" label={showGhost ? 'Hide the melody' : 'Show the melody'} color={showGhost ? t.accent : t.textDim} onPress={() => void toggleGhost()} testID={`ghost-${rec.id}`} />
       <IconButton icon="ellipsis-horizontal" label={`Options for ${rec.title}`} color={t.textDim} onPress={menu} />
     </View>
+    {chart && doc && <ChartSheet take={rec} doc={doc} onClose={() => setChart(false)} />}
     {showGhost && (
       <View style={{ paddingHorizontal: space.lg, paddingBottom: space.md }} testID={`ghost-view-${rec.id}`}>
         {ghost.state === 'loading' ? (

@@ -62,6 +62,30 @@ export function chromaAndBass(x: Float32Array, sr: number): { chroma: number[]; 
   return { chroma, bass, energy: frames ? energy / frames : 0 };
 }
 
+/**
+ * How well each chord (every root with each of the given qualities) explains a chroma, using the same
+ * scoring as chordFromChroma. Index is root * suffixes.length + suffix index.
+ */
+export function chordScores(chroma: number[], bass: number | null, suffixes: string[]): Float64Array {
+  const total = chroma.reduce((s, v) => s + v, 0);
+  const out = new Float64Array(12 * suffixes.length).fill(-1);
+  if (total <= 0) return out;
+  const norm = chroma.map((v) => v / total);
+  for (let root = 0; root < 12; root++) {
+    suffixes.forEach((suffix, si) => {
+      const q = QUALITY_BY_SUFFIX[suffix];
+      const tones = new Set(q.intervals.map((i) => mod12(root + i)));
+      let inside = 0;
+      for (const t of tones) inside += norm[t];
+      let score = inside - (1 - inside) * 1.1 - (tones.size - 3) * 0.04;
+      if (Math.min(...[...tones].map((t) => norm[t])) < 0.03) score -= 0.35;
+      if (bass !== null && bass === root) score += 0.08;
+      out[root * suffixes.length + si] = score;
+    });
+  }
+  return out;
+}
+
 export function chordFromChroma(chroma: number[], bass: number | null): DetectedChord | null {
   const total = chroma.reduce((s, v) => s + v, 0);
   if (total <= 0) return null;
