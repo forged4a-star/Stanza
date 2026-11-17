@@ -2,6 +2,7 @@
  * All persistence. Every function takes a driver so it can run standalone or
  * inside a transaction. Nothing here knows about React.
  */
+import { compact, type EditEvent } from '../core/lyrics/replay';
 import {
   type ChordBar,
   type Folder,
@@ -984,4 +985,44 @@ export async function upsertRecording(d: SqlDriver, r: Recording): Promise<boole
 export async function songsChangedSince(d: SqlDriver, since: number): Promise<{ id: string; updatedAt: number; deletedAt: number | null }[]> {
   const rows = await d.all<Row>(`SELECT id, updated_at, deleted_at FROM songs WHERE updated_at > ? OR coalesce(deleted_at, 0) > ?`, [since, since]);
   return rows.map((r) => ({ id: r.id, updatedAt: Math.max(Number(r.updated_at), Number(r.deleted_at ?? 0)), deletedAt: r.deleted_at == null ? null : Number(r.deleted_at) }));
+}
+
+
+// ------------------------------------------------------------------ writing history (for the replay)
+
+
+const editData = (e: EditEvent) => {
+  const { at: _at, kind: _kind, ...rest } = e as EditEvent & Record<string, unknown>;
+  return JSON.stringify(rest);
+};
+
+export async function addEditEvents(d: SqlDriver, songId: string, events: EditEvent[]): Promise<void> {
+  for (const e of events) await d.run(`INSERT INTO edit_log (song_id, at, kind, data) VALUES (?, ?, ?, ?)`, [songId, e.at, e.kind, editData(e)]);
+}
+
+export async function listEditEvents(d: SqlDriver, songId: string): Promise<EditEvent[]> {
+  const rows = await d.all<Row>(`SELECT at, kind, data FROM edit_log WHERE song_id = ? ORDER BY at, id`, [songId]);
+  return rows.map((r) => ({ at: Number(r.at), kind: r.kind, ...parseJson<Record<string, unknown>>(r.data, {}) }) as EditEvent);
+}
+
+export async function countEditEvents(d: SqlDriver, songId: string): Promise<number> {
+  const r = await d.first<Row>(`SELECT COUNT(*) AS n FROM edit_log WHERE song_id = ?`, [songId]);
+  return Number(r?.n ?? 0);
+}
+
+export async function clearEditEvents(d: SqlDriver, songId: string): Promise<void> {
+  await d.run(`DELETE FROM edit_log WHERE song_id = ?`, [songId]);
+}
+
+/** Keep a long history small: when it grows past `limit` events, the oldest are folded into one starting point. */
+export async function compactEditEvents(db: Db, songId: string, limit = 4000, keep = 2500): Promise<boolean> {
+  if ((await countEditEvents(db, songId)) <= limit) return false;
+  return db.tx(async (d) => {
+    const all = await listEditEvents(d, songId);
+    const folded = compact(all, keep);
+    if (folded === all) return false;
+    await clearEditEvents(d, songId);
+    await addEditEvents(d, songId, folded);
+    return true;
+  });
 }

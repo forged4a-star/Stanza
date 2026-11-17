@@ -19,7 +19,7 @@ import { exportSong, type ExportKind } from '../export/exportActions';
 import { Share, Platform } from 'react-native';
 import { roomFor, shareSong, stopSharing, useCollab } from '../../collab/collab';
 
-export type SongSheetAction = 'versions' | 'takes' | 'arrange' | 'sound' | 'compare' | 'shape' | 'web' | 'cards' | 'image' | 'import';
+export type SongSheetAction = 'versions' | 'takes' | 'arrange' | 'sound' | 'compare' | 'shape' | 'web' | 'cards' | 'image' | 'replay' | 'import';
 
 export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onClose: () => void; onOpen: (a: SongSheetAction) => void }) {
   const t = useTheme();
@@ -176,6 +176,7 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
               testID="edit-tags"
             />
             <ShareItem />
+            <ListItem icon="play-circle-outline" title="Watch it being written" subtitle="Replay how the words came together" onPress={() => onOpen('replay')} testID="open-replay" />
             <ListItem icon="radio-button-on-outline" title="Record the full song" subtitle="One take, with your words and chords scrolling along" onPress={async () => { await flushSaves(); onClose(); router.push(`/take/${doc!.song.id}`); }} testID="open-full-take" />
             <ListItem icon="albums-outline" title="Constraint cards" subtitle={card ? `${card.title}: ${card.breaks === 0 ? 'all lines follow it' : card.breaks + ' lines break it'}` : 'Write inside a rule, like only one-syllable words'} onPress={() => onOpen('cards')} testID="open-cards" />
             <ListItem icon="git-network-outline" title="Rhyme web" subtitle="Families of rhymes, and line endings that rhyme with nothing" onPress={() => onOpen('web')} testID="open-web" />

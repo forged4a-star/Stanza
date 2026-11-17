@@ -176,3 +176,47 @@ describe('backup', () => {
     expect(repo.sameContent(copy, doc)).toBe(true);
   });
 });
+
+describe('writing history', () => {
+  const ev = (at: number, text: string) => ({ at, kind: 'sec' as const, id: 'a', text });
+  it('saves, lists in time order, and goes away with the song', async () => {
+    const db = await openTestDb();
+    const doc = await repo.createSong(db, { title: 'H' });
+    await repo.addEditEvents(db, doc.song.id, [ev(30, 'three'), ev(10, 'one'), { at: 20, kind: 'title', title: 'Hi' }]);
+    const list = await repo.listEditEvents(db, doc.song.id);
+    expect(list.map((e) => e.at)).toEqual([10, 20, 30]);
+    expect(list[1]).toEqual({ at: 20, kind: 'title', title: 'Hi' });
+    expect(list[0]).toMatchObject({ kind: 'sec', id: 'a', text: 'one' });
+    expect(await repo.countEditEvents(db, doc.song.id)).toBe(3);
+    await repo.purgeSong(db, doc.song.id);
+    expect(await repo.countEditEvents(db, doc.song.id)).toBe(0);
+  });
+  it('histories of different songs do not mix, and can be cleared', async () => {
+    const db = await openTestDb();
+    const a = await repo.createSong(db, { title: 'A' });
+    const b = await repo.createSong(db, { title: 'B' });
+    await repo.addEditEvents(db, a.song.id, [ev(1, 'x')]);
+    await repo.addEditEvents(db, b.song.id, [ev(2, 'y'), ev(3, 'yy')]);
+    expect(await repo.countEditEvents(db, a.song.id)).toBe(1);
+    await repo.clearEditEvents(db, b.song.id);
+    expect(await repo.countEditEvents(db, b.song.id)).toBe(0);
+    expect(await repo.countEditEvents(db, a.song.id)).toBe(1);
+  });
+  it('a long history is folded so it stays small, without losing the end result', async () => {
+    const db = await openTestDb();
+    const doc = await repo.createSong(db, { title: 'Long' });
+    const base = { at: 0, kind: 'base' as const, state: { title: '', sections: [{ id: 'a', kind: 'verse' as const, label: '', lines: [''] }] } };
+    await repo.addEditEvents(db, doc.song.id, [base, ...Array.from({ length: 60 }, (_, i) => ev(i + 1, 'y'.repeat(i + 1)))]);
+    expect(await repo.compactEditEvents(db, doc.song.id, 50, 20)).toBe(true);
+    const list = await repo.listEditEvents(db, doc.song.id);
+    expect(list.length).toBe(21);
+    expect(list[0].kind).toBe('base');
+    expect((list.at(-1) as { text: string }).text.length).toBe(60);
+    expect(await repo.compactEditEvents(db, doc.song.id, 50, 20)).toBe(false); // already small
+  });
+  it('the database migrates to the new version', async () => {
+    const db = await openTestDb();
+    const row = await db.first<{ user_version: number }>('PRAGMA user_version');
+    expect(row?.user_version).toBeGreaterThanOrEqual(2);
+  });
+});

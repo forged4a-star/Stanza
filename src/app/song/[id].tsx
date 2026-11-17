@@ -25,6 +25,7 @@ import { ShapeSheet } from '../../features/shape/ShapeSheet';
 import { RhymeWebSheet } from '../../features/shape/RhymeWebSheet';
 import { CardSheet } from '../../features/cards/CardSheet';
 import { CardImageSheet } from '../../features/export/CardImageSheet';
+import { ReplaySheet } from '../../features/replay/ReplaySheet';
 import { ImportSheet } from '../../features/import/ImportSheet';
 import { connectSong, disconnect, sendPresence, useCollab } from '../../collab/collab';
 import { CommentsSheet } from '../../collab/CommentsSheet';
@@ -43,7 +44,7 @@ import { Icon, IconButton, pageStyle } from '../../ui/kit';
 import { font, radius, space, TAP, useTheme, displayText } from '../../ui/theme';
 import { alpha } from '../../ui/color';
 
-type Sheet = null | 'song' | 'takes' | 'versions' | 'arrange' | 'inbox' | 'sound' | 'words' | 'chords' | 'shape' | 'web' | 'cards' | 'image' | 'comments' | 'import';
+type Sheet = null | 'song' | 'takes' | 'versions' | 'arrange' | 'inbox' | 'sound' | 'words' | 'chords' | 'shape' | 'web' | 'cards' | 'image' | 'replay' | 'comments' | 'import';
 
 export default function SongPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -340,6 +341,7 @@ export default function SongPage() {
       <RhymeWebSheet visible={sheet === 'web'} onClose={() => setSheet(null)} />
       <CardSheet visible={sheet === 'cards'} onClose={() => setSheet(null)} />
       <CardImageSheet visible={sheet === 'image'} onClose={() => setSheet(null)} />
+      <ReplaySheet visible={sheet === 'replay'} onClose={() => setSheet(null)} />
       <CommentsSheet visible={sheet === 'comments'} onClose={() => setSheet(null)} lineId={activeLineId} />
     </View>
   );

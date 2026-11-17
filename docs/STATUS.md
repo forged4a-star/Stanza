@@ -527,3 +527,41 @@ Found by reading the native engine's source, not just testing in a browser:
   sizes), the bundled fonts on Android, the gradient background property on
   Android (supported by this React Native version, tested in the browser only).
   Plain system font remains available as a typeface choice.
+
+## Round: harmonize, write to the tune, chords from a take, writing replay, full-song take
+
+- **Record the full song** (Takes sheet, or song menu). A full-screen take: count-in
+  (optional), your words and chords scroll along at the song's tempo with the
+  current section highlighted, a timer, then Stop. The take is saved to the whole
+  song ("Full song take N") and plays back right there, with "Record again" and
+  "Chords from this take". Leaving mid-take asks whether to keep or discard it.
+  Tested with the browser's fake microphone; not on a phone. The click is not
+  played while recording (headphones advised), only the count-in beeps.
+- **Harmonize my melody** (piano roll, wand button). For a section's tune it finds
+  chords bar by bar (or half bar), choosing chords that support the notes (chord
+  tones on strong beats count most, passing notes off the beat are fine) along a
+  path of common chord moves with a tonic at the start and a resting end. Three
+  styles (Simple, Colourful, Moody) with "fits N% of your melody"; hear the melody
+  over each and keep one. Plain tunes can give just two distinct styles.
+- **Write to the tune** (piano roll, pencil button). Each phrase of the melody
+  shows a beat skeleton (big dot = strong note, small = weak). Type words under it
+  and each syllable lands on its note, green/amber/red by whether its stress fits,
+  with a summary ("5 syllables for 4 notes · 1 too many"). "Use these words" writes
+  the lines and links notes to syllables. It only judges; it never suggests words.
+- **Chords from a take** (a take's menu, or right after a full take). Listens to the
+  recording in small slices (progress bar), finds the most likely chord path over
+  time (a chord changes only when the evidence is strong; qualities: major, minor,
+  7, m7, maj7), snaps the changes to bars at a tempo you can nudge, and puts them
+  in the section you pick (and sets the song key if it has none). Tested on
+  synthesized chords and a recorded G chord; real guitars, rooms and singers will
+  be messier. Works best with one instrument, close to the phone.
+- **Writing replay** (song menu). From now on every change to the words is
+  remembered on the phone (a new local table, `edit_log`, saved a moment after you
+  stop typing; not synced or exported). Replay rebuilds the song step by step,
+  typing new text in, with long pauses squeezed so hours play in under a minute;
+  scrub, speed 1× to 32×, caption like "14 lines, written over 2 h". "Clear this
+  history" removes it. Songs written before this update have no replay.
+  **Not built: sharing the replay as a video** (the phone has no video encoder we
+  can use from here).
+- Checks: 324 unit tests; all 18 browser suites; the hosted-web and desktop tests
+  still pass. Lint cannot run here.

@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { processPendingRecordings } from '../audio/analysisJob';
 import { setVolume } from '../audio/engine';
+import { startEditLog } from '../store/editLog';
 import { startAutoSync } from '../sync/runner';
 import { getDb } from '../db/client';
 import { CaptureHost } from '../features/capture/capture';
@@ -46,6 +47,7 @@ export default function RootLayout() {
         useSettings.subscribe((st, prev) => {
           if (st.volume !== prev.volume) setVolume(st.volume);
         });
+        startEditLog();
         void startAutoSync();
         // finish analysing any takes left over from last time
         void processPendingRecordings();

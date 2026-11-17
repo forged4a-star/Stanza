@@ -9,7 +9,7 @@ SERVE=$!
 trap 'kill $SERVE' EXIT
 sleep 1
 status=0
-for suite in phase1 phase2 phase3 phase4 phase5 capture editing sheet strum shapes batch1 batch2 batch3 look take melody chart; do
+for suite in phase1 phase2 phase3 phase4 phase5 capture editing sheet strum shapes batch1 batch2 batch3 look take melody chart replay; do
   echo "== $suite"
   node "e2e/$suite.e2e.cjs" || status=1
 done

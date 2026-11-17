@@ -111,6 +111,17 @@ export const MIGRATIONS: string[] = [
     data BLOB NOT NULL
   );
   `,
+  // 2: how the lyrics changed over time, for the writing replay (kept on this device only)
+  `
+  CREATE TABLE edit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    song_id TEXT NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+    at INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    data TEXT NOT NULL
+  );
+  CREATE INDEX edit_log_song ON edit_log(song_id, at);
+  `,
 ];
 
 export async function migrate(db: Db): Promise<void> {
