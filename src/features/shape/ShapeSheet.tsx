@@ -3,7 +3,7 @@
  * drawn as an arc), the contrast meter (verse vs chorus) and questions that
  * help you say what you mean. Nothing here writes lyrics.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
 import { compareSections, defaultContrastPair, questionsFor } from '../../core/lyrics/shape';
@@ -16,23 +16,24 @@ import { font, radius, space, useTheme } from '../../ui/theme';
 
 type Tab = 'feeling' | 'energy' | 'contrast' | 'questions';
 
-export function ShapeSheet({ visible, onClose, initialTab = 'feeling' }: { visible: boolean; onClose: () => void; initialTab?: Tab }) {
+export function ShapeSheet({ visible, onClose, initialTab = 'feeling', header }: { visible: boolean; onClose: () => void; initialTab?: Tab; header?: ReactNode }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Song shape" height={0.82} light testID="shape-sheet">
-      <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
-        <Segmented
-          value={tab}
-          onChange={setTab}
-          options={[
-            { value: 'feeling', label: 'Feeling' },
-            { value: 'energy', label: 'Energy' },
-            { value: 'contrast', label: 'Contrast' },
-            { value: 'questions', label: 'Questions' },
-          ]}
-        />
-      </View>
+    <BottomSheet visible={visible} onClose={onClose} title="Shape" height={0.82} light testID="shape-sheet">
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.xxl }} keyboardShouldPersistTaps="handled">
+        {header}
+        <View style={{ paddingBottom: space.sm }}>
+          <Segmented
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: 'feeling', label: 'Feeling' },
+              { value: 'energy', label: 'Energy' },
+              { value: 'contrast', label: 'Contrast' },
+              { value: 'questions', label: 'Questions' },
+            ]}
+          />
+        </View>
         {tab === 'feeling' && <FeelingMap />}
         {tab === 'energy' && <EnergyMap />}
         {tab === 'contrast' && <ContrastMeter />}

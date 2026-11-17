@@ -6,6 +6,7 @@
  *   node e2e/phase1.e2e.cjs [screenshotDir]
  */
 const { chromium } = require('playwright');
+const { navId, closeTop } = require('./nav.cjs');
 const assert = require('node:assert/strict');
 
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
@@ -21,7 +22,7 @@ async function main() {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  const id = (x) => page.getByTestId(x);
+  const id = navId(page);
   const shot = async (name) => shots && (await page.screenshot({ path: `${shots}/${String(++step).padStart(2, '0')}-${name}.png` }));
   const saved = () => id('save-saved').waitFor({ timeout: 10000 });
   const check = async (name, fn) => {
@@ -42,7 +43,7 @@ async function main() {
   };
   const closeSheet = async () => {
     // the newest sheet is on top
-    await page.getByRole('button', { name: 'Close sheet' }).last().click();
+    await closeTop(page);
     await page.waitForTimeout(400);
   };
   const settle = async () => {
@@ -250,9 +251,7 @@ async function main() {
   });
 
   await check('performance mode opens with the lyrics', async () => {
-    await id('open-song-sheet').click();
-    await page.getByRole('tab', { name: 'Song' }).click();
-    await page.getByRole('button', { name: 'Performance mode' }).click();
+    await id('open-stage').click();
     await id('perform-scroll').waitFor();
     await id('perform-scroll').getByText('Drive all night').waitFor();
     await id('perform-play').click();

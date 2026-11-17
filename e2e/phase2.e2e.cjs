@@ -1,5 +1,6 @@
 /** Phase 2 in the browser: sound highlighting modes/settings, counts panel, word tools. */
 const { chromium } = require('playwright');
+const { navId, closeTop } = require('./nav.cjs');
 const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
 const shots = process.argv[2] || null;
@@ -10,7 +11,7 @@ const shots = process.argv[2] || null;
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  const id = (x) => page.getByTestId(x);
+  const id = navId(page);
   const check = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
     await fn();
@@ -22,7 +23,7 @@ const shots = process.argv[2] || null;
   };
   const closeSheet = async () => {
     // the newest sheet is on top
-    await page.getByRole('button', { name: 'Close sheet' }).last().click();
+    await closeTop(page);
     await page.waitForTimeout(400);
   };
   const open = async (btn, sheet) => {

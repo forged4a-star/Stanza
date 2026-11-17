@@ -1,5 +1,6 @@
 /** Phase 4 in the browser: piano roll, scale lock, syllable links, checks, range, hum-to-MIDI. */
 const { chromium } = require('playwright');
+const { navId, closeTop } = require('./nav.cjs');
 const { humWav, chordWav } = require('./fixtures.cjs');
 const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
@@ -15,7 +16,7 @@ const ROW = 18;
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  const id = (x) => page.getByTestId(x);
+  const id = navId(page);
   const check = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
     await fn();
@@ -26,7 +27,7 @@ const ROW = 18;
     await page.waitForTimeout(350);
   };
   const closeSheet = async () => {
-    await page.getByRole('button', { name: 'Close sheet' }).last().click();
+    await closeTop(page);
     await page.waitForTimeout(400);
   };
   const open = async (btn, sheet) => {

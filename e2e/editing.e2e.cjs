@@ -1,5 +1,6 @@
 /** Editing fixes: Enter, held Backspace across lines, paste, lyrics import, iambic mode, piano-roll touch. */
 const { chromium } = require('playwright');
+const { navId, closeTop } = require('./nav.cjs');
 const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
 const shots = process.argv[2] || null;
@@ -9,7 +10,7 @@ const shots = process.argv[2] || null;
   const page = await (await browser.newContext({ viewport: { width: 400, height: 860 } })).newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const id = (x) => page.getByTestId(x);
+  const id = navId(page);
   const check = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
     await fn();
@@ -20,7 +21,7 @@ const shots = process.argv[2] || null;
     await page.waitForTimeout(350);
   };
   const closeSheet = async () => {
-    await page.getByRole('button', { name: 'Close sheet' }).last().click();
+    await closeTop(page);
     await page.waitForTimeout(400);
   };
   const lineTexts = (section) => page.evaluate((s) => [...document.querySelectorAll(`[data-testid^="line-${s}-"][data-testid$="-text"]`)].map((e) => e.innerText), section);

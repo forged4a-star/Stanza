@@ -1,5 +1,6 @@
 /** Look & feel: choose a look, make it yours, keep it, share it. And the editor follows the typeface. */
 const { chromium } = require('playwright');
+const { navId, closeTop } = require('./nav.cjs');
 const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
 
@@ -9,7 +10,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081';
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const id = (x) => page.getByTestId(x);
+  const id = navId(page);
   const check = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
     await fn();

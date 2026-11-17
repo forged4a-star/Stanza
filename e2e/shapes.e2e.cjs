@@ -1,5 +1,6 @@
 /** Standard shapes and least-movement fingering in the Shapes tab. */
 const { chromium } = require('playwright');
+const { navId, closeTop } = require('./nav.cjs');
 const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
 
@@ -8,7 +9,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081';
   const page = await (await browser.newContext({ viewport: { width: 400, height: 860 } })).newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const id = (x) => page.getByTestId(x);
+  const id = navId(page);
   const check = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
     await fn();

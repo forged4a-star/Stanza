@@ -4,6 +4,7 @@
  * (browser contexts) through a real Stanza server.
  */
 const { chromium } = require('playwright');
+const { navId, closeTop } = require('./nav.cjs');
 const { spawn } = require('node:child_process');
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -21,7 +22,7 @@ const shots = process.argv[2] || null;
   const page = await devA.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const id = (x, p = page) => p.getByTestId(x);
+  const id = (x, p = page) => navId(p)(x);
   const check = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
     await fn();
@@ -32,7 +33,7 @@ const shots = process.argv[2] || null;
     await p.waitForTimeout(350);
   };
   const closeSheet = async (p = page) => {
-    await p.getByRole('button', { name: 'Close sheet' }).last().click();
+    await closeTop(p);
     await p.waitForTimeout(400);
   };
   const tab = (name, p = page) => p.getByRole('tab', { name, exact: true }).click();

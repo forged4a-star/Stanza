@@ -1,5 +1,6 @@
 /** Full-song take: count-in, lyrics scroll along, stop, the take is saved to the song. */
 const { chromium } = require('playwright');
+const { navId, closeTop } = require('./nav.cjs');
 const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
 
@@ -9,7 +10,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081';
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const id = (x) => page.getByTestId(x);
+  const id = navId(page);
   const check = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
     await fn();
@@ -58,7 +59,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081';
       await id('chart-sheet').waitFor();
       // the fake microphone plays a beep, not chords: either a chart or a polite "no clear chords" is fine
       await page.waitForFunction(() => !!document.querySelector('[data-testid="chart-timeline"], [data-testid="chart-empty"]'), null, { timeout: 60000 });
-      await page.getByRole('button', { name: 'Close sheet' }).last().click();
+      await closeTop(page);
       await page.waitForTimeout(400);
     });
 

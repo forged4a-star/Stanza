@@ -1,5 +1,6 @@
 /** Chords from a take: record a G chord, read it back as a chart, put it in a section. */
 const { chromium } = require('playwright');
+const { navId, closeTop } = require('./nav.cjs');
 const { chordWav } = require('./fixtures.cjs');
 const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
@@ -10,7 +11,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081';
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const id = (x) => page.getByTestId(x);
+  const id = navId(page);
   const check = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
     await fn();
@@ -58,7 +59,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081';
       await id('chart-target-0').click();
       await id('chart-apply').click();
       await page.waitForTimeout(700);
-      await page.getByRole('button', { name: 'Close sheet' }).last().click().catch(() => {});
+      await closeTop(page).catch(() => {});
       await page.waitForTimeout(500);
       await id('chord-grid-0').waitFor();
       assert.match(await id('chord-grid-0').innerText(), /\bG\b/);

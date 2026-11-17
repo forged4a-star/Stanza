@@ -1,5 +1,6 @@
 /** Melody tools: harmonize my melody; (more below as they are added). */
 const { chromium } = require('playwright');
+const { navId, closeTop } = require('./nav.cjs');
 const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
 const STEP = 22;
@@ -11,7 +12,7 @@ const ROW = 18;
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const id = (x) => page.getByTestId(x);
+  const id = navId(page);
   const check = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
     await fn();
@@ -22,7 +23,7 @@ const ROW = 18;
     await page.waitForTimeout(350);
   };
   const closeSheet = async () => {
-    await page.getByRole('button', { name: 'Close sheet' }).last().click();
+    await closeTop(page);
     await page.waitForTimeout(400);
   };
   const rowOf = async (midi) => {

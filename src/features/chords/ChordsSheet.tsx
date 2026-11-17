@@ -50,7 +50,7 @@ function appendBars(chords: string[]) {
 export function ChordsSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('play');
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Chords" height={0.8} light testID="chords-sheet">
+    <BottomSheet visible={visible} onClose={onClose} title="Music" height={0.8} light testID="chords-sheet">
       <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
         <Segmented
           value={tab}

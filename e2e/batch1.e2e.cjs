@@ -1,5 +1,6 @@
 /** 1.1 batch 1: tap in a strum, rhyme web, stage view (performance mode). */
 const { chromium } = require('playwright');
+const { navId, closeTop } = require('./nav.cjs');
 const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
 
@@ -8,7 +9,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081';
   const page = await (await browser.newContext({ viewport: { width: 400, height: 860 } })).newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const id = (x) => page.getByTestId(x);
+  const id = navId(page);
   const check = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
     await fn();
@@ -19,7 +20,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081';
     await page.waitForTimeout(350);
   };
   const closeSheet = async () => {
-    await page.getByRole('button', { name: 'Close sheet' }).last().click();
+    await closeTop(page);
     await page.waitForTimeout(400);
   };
   try {

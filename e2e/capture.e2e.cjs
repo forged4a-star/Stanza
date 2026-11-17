@@ -5,6 +5,7 @@
  * loose idea into the Inbox, and an Inbox idea can be dragged onto a section.
  */
 const { chromium } = require('playwright');
+const { navId, closeTop } = require('./nav.cjs');
 const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
 const shots = process.argv[2] || null;
@@ -16,7 +17,7 @@ const shots = process.argv[2] || null;
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  const id = (x) => page.getByTestId(x);
+  const id = navId(page);
   const step = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
     await fn();
@@ -50,7 +51,7 @@ const shots = process.argv[2] || null;
         if (!/analysing/.test(text) && /Verse take 1/.test(text)) break;
         await page.waitForTimeout(1000);
         // reopen to refresh
-        await page.getByRole('button', { name: 'Close sheet' }).click();
+        await closeTop(page);
         await page.waitForTimeout(300);
         await id('open-takes').click();
         await id('takes-sheet').waitFor();
@@ -65,7 +66,7 @@ const shots = process.argv[2] || null;
       await page.getByRole('button', { name: /^Play Verse take 1/ }).click();
       await page.getByRole('button', { name: /^Pause Verse take 1/ }).waitFor({ timeout: 5000 });
       await page.getByRole('button', { name: /^Pause Verse take 1/ }).click();
-      await page.getByRole('button', { name: 'Close sheet' }).click();
+      await closeTop(page);
       await page.waitForTimeout(400);
     });
 
@@ -99,7 +100,7 @@ const shots = process.argv[2] || null;
       }
       await page.mouse.up();
       await page.getByText('Take added to the song').waitFor({ timeout: 10000 });
-      await page.getByRole('button', { name: 'Close sheet' }).click();
+      await closeTop(page);
       await page.waitForTimeout(400);
       await id('open-takes').click();
       await id('takes-sheet').waitFor();

@@ -1,5 +1,6 @@
 /** The web build as hosted on GitHub Pages: in a sub-folder, installable, and usable offline. */
 const { chromium } = require('playwright');
+const { navId, closeTop } = require('./nav.cjs');
 const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:8082/Stanza/';
 
@@ -14,7 +15,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8082/Stanza/';
     const u = new URL(r.url());
     if (u.origin === new URL(BASE).origin && r.status() >= 400 && r.request().resourceType() !== 'document') bad.push(`${r.status()} ${u.pathname}`);
   });
-  const id = (x) => page.getByTestId(x);
+  const id = navId(page);
   const check = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
     await fn();

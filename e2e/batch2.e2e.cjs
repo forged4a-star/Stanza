@@ -1,5 +1,6 @@
 /** 1.1 batch 2: idea of the day, constraint cards, ghost of the take (word swap preview is in phase 2). */
 const { chromium } = require('playwright');
+const { navId, closeTop } = require('./nav.cjs');
 const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
 
@@ -9,7 +10,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081';
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const id = (x) => page.getByTestId(x);
+  const id = navId(page);
   const check = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
     await fn();
@@ -20,7 +21,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081';
     await page.waitForTimeout(350);
   };
   const closeSheet = async () => {
-    await page.getByRole('button', { name: 'Close sheet' }).last().click();
+    await closeTop(page);
     await page.waitForTimeout(400);
   };
   try {

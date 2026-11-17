@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { sectionDisplayNames, type Recording } from '../../core/model';
@@ -13,7 +13,7 @@ import { ChartSheet } from './ChartSheet';
 import { ContourView } from './ContourView';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { askText, choose, confirm, toast } from '../../ui/Dialogs';
-import { Empty, Icon, IconButton, Segmented } from '../../ui/kit';
+import { Empty, Icon, IconButton, SectionTitle, Segmented } from '../../ui/kit';
 import { alpha } from '../../ui/color';
 import { font, radius, space, useTheme } from '../../ui/theme';
 import { exportTake } from '../export/exportActions';
@@ -152,7 +152,15 @@ export function TakeRow({ rec, player, onChanged, context }: { rec: Recording; p
   );
 }
 
-export function TakesSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+function SectionTitleRow() {
+  return (
+    <View style={{ paddingHorizontal: space.lg }}>
+      <SectionTitle>Takes in this song</SectionTitle>
+    </View>
+  );
+}
+
+export function TakesSheet({ visible, onClose, header }: { visible: boolean; onClose: () => void; header?: ReactNode }) {
   const t = useTheme();
   const doc = useSong((s) => s.doc);
   const recordings = useSong((s) => s.recordings);
@@ -176,8 +184,7 @@ export function TakesSheet({ visible, onClose }: { visible: boolean; onClose: ()
     return li >= 0 ? `${names[si]}, line ${li + 1}` : names[si];
   };
   const list = recordings.filter((r) => (filter === 'starred' ? r.starred : filter === 'section' ? activeSection && r.sectionId === activeSection.id : true));
-  return (
-    <BottomSheet visible={visible} onClose={onClose} title="Takes" height={0.7} testID="takes-sheet">
+  const filter_ = (
       <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm, gap: space.sm }}>
         <Segmented
           value={filter}
@@ -189,13 +196,20 @@ export function TakesSheet({ visible, onClose }: { visible: boolean; onClose: ()
           ]}
         />
       </View>
+  );
+  return (
+    <BottomSheet visible={visible} onClose={onClose} title="Takes" height={0.7} testID="takes-sheet">
+      {!header && filter_}
       <ScrollView contentContainerStyle={{ paddingBottom: space.xxl }}>
+        {header}
+        {header && <SectionTitleRow />}
+        {header && filter_}
         {list.length === 0 ? (
           <Empty icon="mic-outline" title="No takes here yet" hint="Tap the record button. A take attaches to the line or section you're on." />
         ) : (
           list.map((r) => <TakeRow key={r.id} rec={r} player={player} context={where(r)} onChanged={() => void useSong.getState().reloadRecordings()} />)
         )}
-        <Pressable
+        {!header && <Pressable
           onPress={async () => {
             await flushSaves();
             onClose();
@@ -207,7 +221,7 @@ export function TakesSheet({ visible, onClose }: { visible: boolean; onClose: ()
         >
           <Icon name="radio-button-on" size={18} color={t.record} />
           <Text style={{ color: t.text, fontSize: font.body, fontWeight: '700' }}>Record the full song</Text>
-        </Pressable>
+        </Pressable>}
         <Pressable
           onPress={() => {
             onClose();

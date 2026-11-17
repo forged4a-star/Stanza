@@ -1,5 +1,6 @@
 /** Writing replay: the history of edits, played back, scrubbed, and cleared. */
 const { chromium } = require('playwright');
+const { navId, closeTop } = require('./nav.cjs');
 const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
 
@@ -9,7 +10,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081';
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  const id = (x) => page.getByTestId(x);
+  const id = navId(page);
   const check = async (name, fn) => {
     process.stdout.write(`• ${name} … `);
     await fn();
@@ -33,7 +34,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081';
       await id('open-song-sheet').click();
       await id('open-replay').click();
       await id('replay-empty').waitFor();
-      await page.getByRole('button', { name: 'Close sheet' }).last().click();
+      await closeTop(page);
       await page.waitForTimeout(400);
     });
 
@@ -88,7 +89,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081';
       await id('replay-clear').click();
       await id('dialog-ok').click();
       await id('replay-empty').waitFor();
-      await page.getByRole('button', { name: 'Close sheet' }).last().click();
+      await closeTop(page);
       await page.waitForTimeout(500);
       assert.match(await id('section-1').innerText(), /la la la/);
     });

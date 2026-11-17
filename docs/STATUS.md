@@ -565,3 +565,21 @@ Found by reading the native engine's source, not just testing in a browser:
   can use from here).
 - Checks: 324 unit tests; all 18 browser suites; the hosted-web and desktop tests
   still pass. Lint cannot run here.
+
+## Crackle fix and a reorganised song screen
+
+### Chord player crackle (root cause)
+- The old engine wired one audio source plus one automated gain node per note, and queued two loops ahead. A busy song had hundreds to thousands of live nodes, and the phone's audio thread could not keep up, so it underran (crackle). Earlier fixes (sample rate, gains, a voice cap) treated symptoms.
+- Now the song is mixed in JavaScript (`src/core/audio/mixdown.ts`) into chunks of at least 4 s that start on bar lines. Only 2 to 5 sources are ever connected; loop passes reuse the same buffers. Unit tests check that joined chunks equal one whole mix, that notes fade in and out without clicks, and that a 32-bar busy loop never has more than 5 sources connected.
+- The output now opens in "playback" mode (Android deep buffers) instead of the library's low-latency default, which asks for a callback every 128 samples. Settings → Sound output can switch to "Fastest response" if wanted.
+- Not yet heard on a phone. If it still crackles, Settings → Audio info shows the output rate, mode and how many sources are playing; please send that line.
+
+### Song screen layout
+- The floating icon dock and the crowded "⋯" menu are gone. A tab bar along the bottom has five places:
+  - **Write**: the lyrics, with labelled tools along the top (Words, Highlight, Chord sheet, Cards, Import) and the record button.
+  - **Music**: play the chords, circle of fifths, ideas, shapes, listen.
+  - **Takes**: record the full song, the Inbox, and the takes list.
+  - **Shape**: the finish ring, arrange, compare, rhyme web, and the feeling, energy, contrast and questions views.
+  - **Song**: details (status, key, tempo, capo, folder, tags), share and Stage view, history (versions and replay), duplicate and trash, plus the View and Export tabs.
+- Sheets can now render as full pages (`SheetInline` in `src/ui/BottomSheet.tsx`); quick tools still slide up as sheets.
+- Browser tests use `e2e/nav.cjs`, which switches to the right tab before using a control.

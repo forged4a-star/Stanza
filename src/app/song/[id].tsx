@@ -1,5 +1,8 @@
 /**
- * The lyric page — home. Everything else opens as a sheet over it.
+ * The song screen. A tab bar along the bottom splits it into five places:
+ * Write (the lyrics and writing tools), Music (play the chords), Takes
+ * (recordings and the Inbox), Shape (structure and how finished it is) and
+ * Song (details, history, export). Quick tools still open as sheets.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type ScrollViewInstance } from 'react-native';
@@ -35,6 +38,8 @@ import { WordSheet, type WordTarget } from '../../features/words/WordSheet';
 import { analyzeLine, wordAtOffset } from '../../core/phonetics/line';
 import { InboxSheet } from '../../features/inbox/InboxSheet';
 import { SongSheet, type SongSheetAction } from '../../features/song/SongSheet';
+import { ShapeHeader, SongTabBar, TakesHeader, ToolPill, ToolStrip, useCardLabel, type SongTab } from '../../features/song/SongTabs';
+import { SheetInline } from '../../ui/BottomSheet';
 import { TakesSheet } from '../../features/takes/TakesSheet';
 import { VersionsSheet } from '../../features/versions/VersionsSheet';
 import { useSettings } from '../../store/settings';
@@ -44,7 +49,7 @@ import { Icon, IconButton, pageStyle } from '../../ui/kit';
 import { font, radius, space, TAP, useTheme, displayText } from '../../ui/theme';
 import { alpha } from '../../ui/color';
 
-type Sheet = null | 'song' | 'takes' | 'versions' | 'arrange' | 'inbox' | 'sound' | 'words' | 'chords' | 'shape' | 'web' | 'cards' | 'image' | 'replay' | 'comments' | 'import';
+type Sheet = null | 'versions' | 'arrange' | 'inbox' | 'sound' | 'web' | 'cards' | 'image' | 'replay' | 'comments' | 'import';
 
 export default function SongPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -56,6 +61,8 @@ export default function SongPage() {
   const settings = useSettings();
   const capturePhase = useCapturePhase();
   const [sheet, setSheet] = useState<Sheet>(null);
+  const [tab, setTab] = useState<SongTab>('write');
+  const cardLabel = useCardLabel();
   const [lineMenu, setLineMenu] = useState<string | null>(null);
   const [compare, setCompare] = useState<[number, number] | null>(null);
   const [inboxCount, setInboxCount] = useState(0);
@@ -77,7 +84,7 @@ export default function SongPage() {
     void getDb()
       .then((db) => repo.listIdeas(db))
       .then((l) => setInboxCount(l.length));
-  }, [sheet, capturePhase]);
+  }, [sheet, capturePhase, tab]);
 
   const analysis = useSongAnalysis(doc, { highlight: settings.highlight, modes: settings.soundModes, sensitivity: settings.sensitivity, scope: settings.scope, flags: settings.clicheFlags });
   const names = useMemo(() => (doc ? sectionDisplayNames(doc.sections) : []), [doc]);
@@ -121,7 +128,7 @@ export default function SongPage() {
   const kbCover = kbTop === null ? 0 : Math.max(0, winH - kbTop);
   useEffect(() => {
     scrollBus.by = (dy) => scrollRef.current?.scrollTo({ y: Math.max(0, scrollY.current + dy), animated: true });
-    scrollBus.visibleBottom = () => (kbTop ?? winH) - 84;
+    scrollBus.visibleBottom = () => (kbTop !== null ? kbTop - 84 : winH - 150);
   }, [kbTop, winH]);
 
   // stop the chord player when leaving the song
@@ -177,12 +184,16 @@ export default function SongPage() {
     if (k) useSong.getState().addSection(k as SectionKind);
   };
 
-  const openFromSongSheet = (a: SongSheetAction) => {
-    if (a === 'compare') {
-      setSheet(null);
-      openCompare();
-    } else setSheet(a);
+  const openFromSongSheet = (a: SongSheetAction) => setSheet(a);
+  const openFromShape = (a: 'web' | 'arrange' | 'compare') => (a === 'compare' ? openCompare() : setSheet(a));
+  const goTab = (x: SongTab) => {
+    if (x === tab) return;
+    Keyboard.dismiss();
+    if (x !== 'write') useSong.setState({ focus: null });
+    setTab(x);
   };
+  const backToWrite = () => setTab('write');
+  const keyboardUp = kbTop !== null;
 
   /** Look up the word under the caret (or the last word of the active line). */
   const openWords = () => {
@@ -238,19 +249,6 @@ export default function SongPage() {
         <View style={styles.saveDot} accessibilityLabel={saveState === 'saved' ? 'All changes saved' : saveState === 'saving' ? 'Saving' : 'Save failed, retrying'} testID={`save-${saveState}`}>
           <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: saveState === 'saved' ? t.ok : saveState === 'saving' ? t.textFaint : t.danger, opacity: saveState === 'saved' ? 0.6 : 1 }} />
         </View>
-        <IconButton
-          icon="musical-notes"
-          label={settings.chordSheet ? 'Back to the lyric editor' : 'Chord sheet view'}
-          active={settings.chordSheet}
-          onPress={() => {
-            Keyboard.dismiss();
-            // a stale "focus this line" request would reopen the editor with the keyboard
-            useSong.setState({ focus: null });
-            settings.set({ chordSheet: !settings.chordSheet });
-          }}
-          testID="toggle-sheet"
-        />
-        <IconButton icon="ellipsis-horizontal" label="Song options" onPress={() => setSheet('song')} testID="open-song-sheet" />
       </View>
 
       {collabStatus !== 'off' && (
@@ -263,58 +261,70 @@ export default function SongPage() {
           <Text style={{ color: t.textDim, fontSize: font.small }} testID="comment-count">{openComments}</Text>
         </Pressable>
       )}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          ref={scrollRef}
-          onScroll={(e) => (scrollY.current = e.nativeEvent.contentOffset.y)}
-          scrollEventThrottle={32}
-          contentContainerStyle={[styles.page, { paddingBottom: 140 + insets.bottom + (Platform.OS === 'ios' ? 0 : kbCover) }]} keyboardShouldPersistTaps={Platform.OS === "web" ? "always" : "handled"} keyboardDismissMode="interactive" testID="lyric-page">
-          {settings.chordSheet ? (
-            <ChordSheetView doc={doc} names={names} label={chordLabel} />
-          ) : (
-            doc.sections.map((s, i) => (
-            <SectionBlock
-              key={s.id}
-              section={s}
-              index={i}
-              name={names[i]}
-              analysis={analysis}
-              display={display}
-              onMenu={onSectionMenu}
-              onRecord={recordSection}
-              extra={
-                s.bars.length || s.melody.length || melodyOpen[s.id] ? (
-                  <>
-                    {s.bars.length > 0 && <ChordGrid section={s} index={i} label={chordLabel} />}
-                    {melodyOpen[s.id] ? <MelodyRoll section={s} index={i} /> : <MelodyChip section={s} />}
-                  </>
-                ) : null
-              }
-            />
-            ))
-          )}
-          {!settings.chordSheet && <Pressable onPress={addSection} style={[styles.addSection, { borderColor: alpha(t.accent, 0.4), borderRadius: t.r.md, backgroundColor: alpha(t.accent, 0.05) }]} accessibilityRole="button" testID="add-section">
-            <Icon name="add" size={18} color={t.textDim} />
-            <Text style={{ color: t.textDim, fontSize: font.body }}>Section</Text>
-          </Pressable>}
-        </ScrollView>
-      </KeyboardAvoidingView>
+      {/* Write: the lyrics. Kept mounted (only hidden) so scroll position and edits survive tab switches. */}
+      <View style={{ flex: 1, display: tab === 'write' ? 'flex' : 'none' }}>
+        <ToolStrip>
+          <ToolPill icon="book-outline" label="Words" hint="Rhymes, thesaurus and dictionary for the word you're on" onPress={openWords} testID="open-words" />
+          <ToolPill icon="color-palette-outline" label="Highlight" hint="Sound highlighting, rhyme types and counts" active={settings.highlight} onPress={() => setSheet('sound')} testID="open-sound" />
+          <ToolPill
+            icon="musical-notes-outline"
+            label="Chord sheet"
+            hint={settings.chordSheet ? 'Back to the lyric editor' : 'Read-only chord sheet view'}
+            active={settings.chordSheet}
+            onPress={() => {
+              Keyboard.dismiss();
+              // a stale "focus this line" request would reopen the editor with the keyboard
+              useSong.setState({ focus: null });
+              settings.set({ chordSheet: !settings.chordSheet });
+            }}
+            testID="toggle-sheet"
+          />
+          <ToolPill icon="albums-outline" label={cardLabel} hint="Write inside a rule, like only one-syllable words" onPress={() => setSheet('cards')} testID="open-cards" />
+          <ToolPill icon="clipboard-outline" label="Import" hint="Paste lyrics; sections are labelled for you to confirm" onPress={() => setSheet('import')} testID="open-import" />
+        </ToolStrip>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView
+            ref={scrollRef}
+            onScroll={(e) => (scrollY.current = e.nativeEvent.contentOffset.y)}
+            scrollEventThrottle={32}
+            contentContainerStyle={[styles.page, { paddingBottom: 110 + (Platform.OS === 'ios' ? 0 : kbCover) }]} keyboardShouldPersistTaps={Platform.OS === "web" ? "always" : "handled"} keyboardDismissMode="interactive" testID="lyric-page">
+            {settings.chordSheet ? (
+              <ChordSheetView doc={doc} names={names} label={chordLabel} />
+            ) : (
+              doc.sections.map((s, i) => (
+              <SectionBlock
+                key={s.id}
+                section={s}
+                index={i}
+                name={names[i]}
+                analysis={analysis}
+                display={display}
+                onMenu={onSectionMenu}
+                onRecord={recordSection}
+                extra={
+                  s.bars.length || s.melody.length || melodyOpen[s.id] ? (
+                    <>
+                      {s.bars.length > 0 && <ChordGrid section={s} index={i} label={chordLabel} />}
+                      {melodyOpen[s.id] ? <MelodyRoll section={s} index={i} /> : <MelodyChip section={s} />}
+                    </>
+                  ) : null
+                }
+              />
+              ))
+            )}
+            {!settings.chordSheet && <Pressable onPress={addSection} style={[styles.addSection, { borderColor: alpha(t.accent, 0.4), borderRadius: t.r.md, backgroundColor: alpha(t.accent, 0.05) }]} accessibilityRole="button" testID="add-section">
+              <Icon name="add" size={18} color={t.textDim} />
+              <Text style={{ color: t.textDim, fontSize: font.body }}>Section</Text>
+            </Pressable>}
+          </ScrollView>
+        </KeyboardAvoidingView>
 
-      {/* bottom: a few quiet tools within thumb reach, and the record button */}
-      {capturePhase === 'idle' && (
-        <View style={[styles.bottom, { paddingBottom: (kbCover ? 0 : insets.bottom) + space.sm, bottom: kbCover }]} pointerEvents="box-none">
-          <View style={[styles.tools, { backgroundColor: alpha(t.surface, 0.96), borderColor: t.border, borderRadius: t.r.xl + 6 }, ({ boxShadow: '0 10px 30px rgba(0,0,0,0.28)' } as object)]}>
-            <IconButton icon="albums-outline" label={`Takes (${recordingsCount})`} onPress={() => setSheet('takes')} testID="open-takes" />
-            <IconButton icon="file-tray-outline" label={`Inbox (${inboxCount})`} onPress={() => setSheet('inbox')} testID="open-inbox" />
-
-            <IconButton icon="book-outline" label="Words: rhymes, thesaurus, dictionary" onPress={openWords} testID="open-words" />
-            <IconButton icon="color-palette-outline" label="Sound: highlighting and counts" active={settings.highlight} onPress={() => setSheet('sound')} testID="open-sound" />
-            <IconButton icon="musical-notes-outline" label="Chords: play, circle of fifths, ideas, shapes" onPress={() => setSheet('chords')} testID="open-chords" />
-          </View>
+        {/* the record button, in thumb reach; it rides above the keyboard */}
+        {capturePhase === 'idle' && (
           <Pressable
             onPress={recordHere}
             onLongPress={() => startCapture({ songId: null, label: 'Idea' })}
-            style={({ pressed }) => [styles.rec, { backgroundColor: t.record }, ({ backgroundImage: `linear-gradient(145deg, ${t.record} 0%, ${t.accent2} 140%)`, boxShadow: `0 10px 26px ${alpha(t.record, 0.5)}` } as object), pressed && { transform: [{ scale: 0.95 }] }]}
+            style={({ pressed }) => [styles.rec, { bottom: space.md + kbCover, backgroundColor: t.record }, ({ backgroundImage: `linear-gradient(145deg, ${t.record} 0%, ${t.accent2} 140%)`, boxShadow: `0 10px 26px ${alpha(t.record, 0.5)}` } as object), pressed && { transform: [{ scale: 0.95 }] }]}
             accessibilityRole="button"
             accessibilityLabel="Record"
             accessibilityHint="Records a take for the section you're on. Long-press to record a loose idea to the Inbox."
@@ -322,11 +332,19 @@ export default function SongPage() {
           >
             <Icon name="mic" size={28} color="#fff" />
           </Pressable>
-        </View>
-      )}
+        )}
+      </View>
 
-      <SongSheet visible={sheet === 'song'} onClose={() => setSheet(null)} onOpen={openFromSongSheet} />
-      <TakesSheet visible={sheet === 'takes'} onClose={() => setSheet(null)} />
+      {/* the other tabs are full pages */}
+      <SheetInline.Provider value>
+        <ChordsSheet visible={tab === 'music'} onClose={backToWrite} />
+        <TakesSheet visible={tab === 'takes'} onClose={backToWrite} header={<TakesHeader inboxCount={inboxCount} onInbox={() => setSheet('inbox')} />} />
+        <ShapeSheet visible={tab === 'shape'} onClose={backToWrite} header={<ShapeHeader onOpen={openFromShape} />} />
+        <SongSheet visible={tab === 'song'} onClose={backToWrite} onOpen={openFromSongSheet} />
+      </SheetInline.Provider>
+
+      {!keyboardUp && capturePhase === 'idle' && <SongTabBar tab={tab} onTab={goTab} takes={recordingsCount} bottomInset={insets.bottom} />}
+
       <VersionsSheet visible={sheet === 'versions'} onClose={() => setSheet(null)} />
       <ArrangeSheet visible={sheet === 'arrange'} onClose={() => setSheet(null)} />
       <InboxSheet visible={sheet === 'inbox'} onClose={() => setSheet(null)} />
@@ -334,10 +352,8 @@ export default function SongPage() {
       <CompareSheet pair={compare} onClose={() => setCompare(null)} />
       <SoundSheet visible={sheet === 'sound'} onClose={() => setSheet(null)} analysis={analysis} />
       <WordSheet target={wordTarget} onClose={() => setWordTarget(null)} />
-      <ChordsSheet visible={sheet === 'chords'} onClose={() => setSheet(null)} />
       <ChordPicker />
       <ImportSheet visible={sheet === 'import'} onClose={() => setSheet(null)} mode="append" />
-      <ShapeSheet visible={sheet === 'shape'} onClose={() => setSheet(null)} />
       <RhymeWebSheet visible={sheet === 'web'} onClose={() => setSheet(null)} />
       <CardSheet visible={sheet === 'cards'} onClose={() => setSheet(null)} />
       <CardImageSheet visible={sheet === 'image'} onClose={() => setSheet(null)} />
@@ -354,7 +370,5 @@ const styles = StyleSheet.create({
   live: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.lg, minHeight: 34 },
   page: { paddingHorizontal: space.md, paddingTop: space.lg, maxWidth: 760, width: '100%', alignSelf: 'center' },
   addSection: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, minHeight: TAP, borderWidth: 1, borderStyle: 'dashed', borderRadius: radius.md, marginLeft: 22, marginRight: 46 },
-  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.md, gap: space.md },
-  tools: { flexDirection: 'row', borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: space.xs, elevation: 3 },
-  rec: { width: 68, height: 68, borderRadius: 34, alignItems: 'center', justifyContent: 'center', elevation: 6 },
+  rec: { position: 'absolute', right: space.lg, width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', elevation: 6 },
 });

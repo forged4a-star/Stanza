@@ -7,9 +7,6 @@ import { parseKey } from '../../core/music/theory';
 import { getDb } from '../../db/client';
 import * as repo from '../../db/repo';
 import { flushSaves, useSong } from '../../store/song';
-import { progressFromDoc } from '../../core/song/progress';
-import { ProgressRing } from '../../ui/ProgressRing';
-import { useCardBreaks } from '../cards/CardSheet';
 import { useSettings } from '../../store/settings';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { askText, choose, confirm, toast } from '../../ui/Dialogs';
@@ -19,16 +16,13 @@ import { exportSong, type ExportKind } from '../export/exportActions';
 import { Share, Platform } from 'react-native';
 import { roomFor, shareSong, stopSharing, useCollab } from '../../collab/collab';
 
-export type SongSheetAction = 'versions' | 'takes' | 'arrange' | 'sound' | 'compare' | 'shape' | 'web' | 'cards' | 'image' | 'replay' | 'import';
+export type SongSheetAction = 'versions' | 'sound' | 'image' | 'replay';
 
 export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onClose: () => void; onOpen: (a: SongSheetAction) => void }) {
   const t = useTheme();
   const doc = useSong((s) => s.doc);
   const st = useSong.getState();
   const settings = useSettings();
-  const card = useCardBreaks();
-  const takeCount = useSong((x) => x.recordings.length);
-  const progress = doc ? progressFromDoc(doc, takeCount) : null;
   const [folders, setFolders] = useState<Folder[]>([]);
   const [tab, setTab] = useState<'song' | 'view' | 'export'>('song');
   const [bpmText, setBpmText] = useState('');
@@ -61,13 +55,13 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
   };
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title={s.title || 'Untitled'} height={0.82} testID="song-sheet">
+    <BottomSheet visible={visible} onClose={onClose} title="Song" height={0.82} testID="song-sheet">
       <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
         <Segmented
           value={tab}
           onChange={setTab}
           options={[
-            { value: 'song', label: 'Song' },
+            { value: 'song', label: 'Details' },
             { value: 'view', label: 'View' },
             { value: 'export', label: 'Export' },
           ]}
@@ -77,22 +71,6 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
       <ScrollView contentContainerStyle={{ paddingBottom: space.xxl }} keyboardShouldPersistTaps="handled">
         {tab === 'song' && (
           <View style={{ paddingHorizontal: space.lg }}>
-            {progress && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.sm, padding: space.md, borderRadius: 12, backgroundColor: t.surface2 }} testID="progress">
-                <ProgressRing done={progress.done} total={progress.total} size={56} />
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: t.text, fontWeight: '700', fontSize: font.body }} testID="progress-title">
-                    {progress.next ? `${progress.done} of ${progress.total} parts done` : 'All five parts are in'}
-                  </Text>
-                  <Text style={{ color: t.textDim, fontSize: font.small }} testID="progress-next">
-                    {progress.next ? `Next: ${progress.next.hint}` : 'Nothing missing. Keep polishing.'}
-                  </Text>
-                  <Text style={{ color: t.textFaint, fontSize: font.small }} testID="progress-items">
-                    {progress.items.map((i) => `${i.done ? '✓' : '○'} ${i.label}`).join('   ')}
-                  </Text>
-                </View>
-              </View>
-            )}
             <SectionTitle>Status</SectionTitle>
             <Row>
               {SONG_STATUSES.map((x) => (
@@ -175,37 +153,35 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
               }}
               testID="edit-tags"
             />
+            <View style={{ paddingHorizontal: space.lg }}>
+              <SectionTitle>Share and perform</SectionTitle>
+            </View>
             <ShareItem />
-            <ListItem icon="play-circle-outline" title="Watch it being written" subtitle="Replay how the words came together" onPress={() => onOpen('replay')} testID="open-replay" />
-            <ListItem icon="radio-button-on-outline" title="Record the full song" subtitle="One take, with your words and chords scrolling along" onPress={async () => { await flushSaves(); onClose(); router.push(`/take/${doc!.song.id}`); }} testID="open-full-take" />
-            <ListItem icon="albums-outline" title="Constraint cards" subtitle={card ? `${card.title}: ${card.breaks === 0 ? 'all lines follow it' : card.breaks + ' lines break it'}` : 'Write inside a rule, like only one-syllable words'} onPress={() => onOpen('cards')} testID="open-cards" />
-            <ListItem icon="git-network-outline" title="Rhyme web" subtitle="Families of rhymes, and line endings that rhyme with nothing" onPress={() => onOpen('web')} testID="open-web" />
-            <ListItem icon="pulse-outline" title="Song shape" subtitle="Feeling map, verse/chorus contrast, questions" onPress={() => onOpen('shape')} testID="open-shape" />
-            <ListItem icon="time-outline" title="Versions" subtitle="Snapshots, compare, restore" onPress={() => onOpen('versions')} testID="open-versions" />
-            <ListItem icon="albums-outline" title="Takes" subtitle="Recordings in this song" onPress={() => onOpen('takes')} />
-            <ListItem icon="clipboard-outline" title="Import lyrics" subtitle="Paste text; sections are labelled for you to confirm" onPress={() => onOpen('import')} testID="open-import" />
-            <ListItem icon="reorder-three" title="Arrange sections" onPress={() => onOpen('arrange')} testID="open-arrange" />
-            <ListItem icon="git-compare-outline" title="Compare sections" subtitle="Side by side, with syllables and stress" onPress={() => onOpen('compare')} testID="open-compare" />
             <ListItem
               icon="easel-outline"
-              title="Performance mode"
-              subtitle="Teleprompter that scrolls with the tempo"
+              title="Stage view"
+              subtitle="Big words and chords that scroll with the tempo"
               onPress={async () => {
                 await flushSaves();
-                onClose();
                 router.push(`/perform/${s.id}`);
               }}
+              testID="open-stage"
             />
+            <View style={{ paddingHorizontal: space.lg }}>
+              <SectionTitle>History</SectionTitle>
+            </View>
+            <ListItem icon="time-outline" title="Versions" subtitle="Snapshots, compare, restore" onPress={() => onOpen('versions')} testID="open-versions" />
+            <ListItem icon="play-circle-outline" title="Watch it being written" subtitle="Replay how the words came together" onPress={() => onOpen('replay')} testID="open-replay" />
+            <View style={{ paddingHorizontal: space.lg }}>
+              <SectionTitle>This song</SectionTitle>
+            </View>
             <ListItem
               icon="copy-outline"
               title="Duplicate song"
               onPress={async () => {
                 await flushSaves();
                 const copy = await repo.duplicateSong(await getDb(), s.id);
-                if (copy) {
-                  onClose();
-                  openSong(copy.song.id);
-                }
+                if (copy) openSong(copy.song.id);
               }}
             />
             <ListItem
@@ -216,7 +192,6 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
                 if (!(await confirm('Move this song to the Trash?', 'You can restore it from the Library.', 'Move to Trash', true))) return;
                 await flushSaves();
                 await repo.trashSong(await getDb(), s.id);
-                onClose();
                 await useSong.getState().close();
                 router.replace('/library');
               }}

@@ -2,7 +2,7 @@
  * Bottom sheet over the lyric page. Opens at `height` (fraction of the
  * screen), can be dragged taller or down to dismiss. No native dependency.
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
   KeyboardAvoidingView,
@@ -37,7 +37,39 @@ interface Props {
   overlay?: ReactNode;
 }
 
-export function BottomSheet({ visible, onClose, title, height = 0.55, headerRight, children, light, contentStyle, testID, overlay }: Props) {
+/**
+ * When true, a sheet renders as a plain full page (a tab of the song screen)
+ * instead of sliding up over it. Sheets opened from inside a page are sheets again.
+ */
+export const SheetInline = createContext(false);
+
+export function BottomSheet(props: Props) {
+  const inline = useContext(SheetInline);
+  return inline ? <InlinePage {...props} /> : <SlideSheet {...props} />;
+}
+
+function InlinePage({ visible, title, headerRight, children, contentStyle, testID, overlay }: Props) {
+  const t = useTheme();
+  if (!visible) return null;
+  return (
+    <SheetInline.Provider value={false}>
+      <View testID={testID} style={{ flex: 1, width: '100%', maxWidth: 760, alignSelf: 'center' }}>
+        {(title || headerRight) && (
+          <View style={[styles.header, { paddingTop: space.sm, paddingBottom: space.xs }]}>
+            <Text style={[styles.title, { color: t.text }, displayText(t, 26)]} numberOfLines={1} accessibilityRole="header">
+              {title}
+            </Text>
+            {headerRight}
+          </View>
+        )}
+        <View style={[{ flex: 1 }, contentStyle]}>{children}</View>
+        {overlay}
+      </View>
+    </SheetInline.Provider>
+  );
+}
+
+function SlideSheet({ visible, onClose, title, height = 0.55, headerRight, children, light, contentStyle, testID, overlay }: Props) {
   const t = useTheme();
   const { height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
