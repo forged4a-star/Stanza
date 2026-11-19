@@ -5,10 +5,12 @@ import {
   ActivityIndicator,
   PanResponder,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  type ScrollViewInstance,
   type StyleProp,
   type TextInputProps,
   type ViewStyle,
@@ -258,25 +260,51 @@ export function ToggleRow({ label, value, onChange, hint, testID }: { label: str
 
 export function Segmented<T extends string>({ options, value, onChange, testID }: { options: { value: T; label: string }[]; value: T; onChange: (v: T) => void; testID?: string }) {
   const t = useTheme();
+  // five or more options do not fit side by side on a phone without cutting the words: let the row scroll sideways instead
+  const scrolls = options.length >= 5;
+  const scroller = useRef<ScrollViewInstance>(null);
+  const spots = useRef<Record<string, { x: number; w: number }>>({});
+  const [width, setWidth] = useState(0);
+  const items = options.map((o) => {
+    const on = o.value === value;
+    return (
+      <Pressable
+        key={o.value}
+        onPress={() => onChange(o.value)}
+        onLayout={(e) => (spots.current[o.value] = { x: e.nativeEvent.layout.x, w: e.nativeEvent.layout.width })}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: on }}
+        accessibilityLabel={o.label}
+        style={[styles.segItem, scrolls && { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', paddingHorizontal: space.md }, { minHeight: t.sp(38), borderRadius: t.r.md }, on && { backgroundColor: t.surface, borderColor: alpha(t.accent, 0.55), borderWidth: 1 }, on && fx({ boxShadow: t.shadow.card })]}
+      >
+        <Text style={{ color: on ? t.text : t.textDim, fontWeight: on ? '700' : '500', fontSize: font.small + 1 }} numberOfLines={1}>
+          {o.label}
+        </Text>
+      </Pressable>
+    );
+  });
+  const reveal = (v: string) => {
+    const s = spots.current[v];
+    if (s && width) scroller.current?.scrollTo({ x: Math.max(0, s.x + s.w / 2 - width / 2), animated: true });
+  };
+  if (!scrolls)
+    return (
+      <View testID={testID} style={[styles.seg, { backgroundColor: t.surface2, borderRadius: t.r.md + 2 }]} accessibilityRole="tablist">
+        {items}
+      </View>
+    );
   return (
-    <View testID={testID} style={[styles.seg, { backgroundColor: t.surface2, borderRadius: t.r.md + 2 }]} accessibilityRole="tablist">
-      {options.map((o) => {
-        const on = o.value === value;
-        return (
-          <Pressable
-            key={o.value}
-            onPress={() => onChange(o.value)}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: on }}
-            accessibilityLabel={o.label}
-            style={[styles.segItem, { minHeight: t.sp(38), borderRadius: t.r.md }, on && { backgroundColor: t.surface, borderColor: alpha(t.accent, 0.55), borderWidth: 1 }, on && fx({ boxShadow: t.shadow.card })]}
-          >
-            <Text style={{ color: on ? t.text : t.textDim, fontWeight: on ? '700' : '500', fontSize: font.small + 1 }} numberOfLines={1}>
-              {o.label}
-            </Text>
-          </Pressable>
-        );
-      })}
+    <View testID={testID} style={{ backgroundColor: t.surface2, borderRadius: t.r.md + 2 }} accessibilityRole="tablist" onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      <ScrollView
+        ref={scroller}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.seg}
+        keyboardShouldPersistTaps="handled"
+        onContentSizeChange={() => reveal(value)}
+      >
+        {items}
+      </ScrollView>
     </View>
   );
 }

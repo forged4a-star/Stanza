@@ -29,6 +29,7 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
   const [keyText, setKeyText] = useState('');
   const [transpose, setTranspose] = useState(0);
   const [roman, setRoman] = useState(false);
+  const [quoteLocked, setQuoteLocked] = useState(false);
   const [busy, setBusy] = useState<ExportKind | null>(null);
 
   useEffect(() => {
@@ -45,7 +46,7 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
   const run = async (kind: ExportKind) => {
     setBusy(kind);
     try {
-      await exportSong(useSong.getState().doc!, kind, { transpose, roman });
+      await exportSong(useSong.getState().doc!, kind, { transpose, roman, handoffLyrics: quoteLocked });
     } catch (e) {
       console.warn(e);
       toast('Export failed');
@@ -167,6 +168,16 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
               }}
               testID="open-stage"
             />
+            <ListItem
+              icon="mic-circle-outline"
+              title="Open-mic mode"
+              subtitle="Count-in, then your words scroll by themselves to the end. Minimal screen."
+              onPress={async () => {
+                await flushSaves();
+                router.push(`/perform/${s.id}?mic=1`);
+              }}
+              testID="open-mic"
+            />
             <View style={{ paddingHorizontal: space.lg }}>
               <SectionTitle>History</SectionTitle>
             </View>
@@ -237,6 +248,9 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
             <Button title="PDF chord chart" icon="musical-notes-outline" onPress={() => run('pdf-chords')} busy={busy === 'pdf-chords'} />
             <Button title="ChordPro (.cho)" icon="code-slash-outline" onPress={() => run('chordpro')} busy={busy === 'chordpro'} testID="export-chordpro" />
             <Button title="MIDI (chords + melody)" icon="musical-note-outline" onPress={() => run('midi')} busy={busy === 'midi'} />
+            <SectionTitle>For a co-writer</SectionTitle>
+            <Button title="Hand-off note (what's done, what's open)" icon="person-add-outline" onPress={() => run('handoff')} busy={busy === 'handoff'} testID="export-handoff" />
+            <ToggleRow label="Quote my locked lines in it" hint="Locked lines are the ones to leave alone. Off: it only says how many." value={quoteLocked} onChange={setQuoteLocked} testID="handoff-quote" />
             <SectionTitle>Everything</SectionTitle>
             <Button title="Project ZIP (lyrics, chords, melody, all takes)" icon="archive-outline" onPress={() => run('zip')} busy={busy === 'zip'} testID="export-zip" />
             <Text style={{ color: t.textFaint, fontSize: font.small }}>Single takes can be shared from the Takes sheet.</Text>

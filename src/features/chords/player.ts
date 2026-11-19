@@ -18,6 +18,9 @@ interface PlayerState {
 
 export const usePlayer = create<PlayerState>(() => ({ playing: false, scope: null, sectionId: null, bar: null, loop: true }));
 
+/** Things that must reset when playback is stopped or replaced by something else (the practice loop). */
+export const playerStopHooks = new Set<() => void>();
+
 /** Melody notes of the given sections as timed events (seconds), for playing along with chords. */
 export function melodyEvents(doc: SongDoc, sectionIds: string[]) {
   const [beats, unit] = doc.song.timeSig;
@@ -34,10 +37,28 @@ export function melodyEvents(doc: SongDoc, sectionIds: string[]) {
 
 export function playScope(
   scope: string,
-  opts: { melody?: boolean; bars?: ChordBar[]; pattern?: string; customStrums?: CustomStrum[]; loop?: boolean; /** play this section's melody over the given chords */ melodyOf?: string } = {}
+  opts: {
+    melody?: boolean;
+    bars?: ChordBar[];
+    pattern?: string;
+    customStrums?: CustomStrum[];
+    loop?: boolean;
+    /** play this section's melody over the given chords */
+    melodyOf?: string;
+    /** play at this tempo instead of the song's (the song itself is not changed) */
+    bpm?: number;
+    metronome?: boolean;
+    /** with `bars`: show the playhead in this section's chord grid, the first bar being bar `offset` */
+    highlight?: { sectionId: string; offset: number };
+    /** called when a run that does not loop reaches its end; it must start the next run or call stopPlayer */
+    onEnd?: () => void;
+    /** set by the practice loop itself, so it does not cancel itself */
+    keepHooks?: boolean;
+  } = {}
 ) {
   const doc = useSong.getState().doc;
   if (!doc) return;
+  if (!opts.keepHooks) for (const h of playerStopHooks) h();
   const settings = useSettings.getState();
   const sections = scope === 'song' ? doc.sections.filter((s) => s.bars.length || s.melody.length) : doc.sections.filter((s) => s.id === scope);
   // map flat bar index → section, so the playhead can show in the right grid
@@ -56,22 +77,23 @@ export function playScope(
   const extra = opts.melodyOf ? melodyEvents(doc, [opts.melodyOf]) : opts.melody !== false && !opts.bars ? melodyEvents(doc, sections.map((s) => s.id)) : [];
   const { loop } = usePlayer.getState();
   const sched = startTransport(bars, {
-    bpm: doc.song.bpm,
+    bpm: opts.bpm ?? doc.song.bpm,
     timeSig: doc.song.timeSig,
     pattern: opts.pattern ?? settings.pattern,
     customStrums: opts.customStrums ?? settings.customStrums,
     instrument: settings.instrument,
-    metronome: settings.metronome,
+    metronome: opts.metronome ?? settings.metronome,
     loop: opts.loop ?? (opts.bars ? false : loop),
     capo: doc.song.capo,
     extra,
-    onBar: (i) => usePlayer.setState({ bar: map[i]?.bar ?? i, sectionId: map[i]?.sectionId ?? null }),
-    onEnd: () => usePlayer.setState({ playing: false, scope: null, bar: null, sectionId: null }),
+    onBar: (i) => usePlayer.setState({ bar: map[i]?.bar ?? (opts.highlight ? opts.highlight.offset + i : i), sectionId: map[i]?.sectionId ?? opts.highlight?.sectionId ?? null }),
+    onEnd: () => (opts.onEnd ? opts.onEnd() : usePlayer.setState({ playing: false, scope: null, bar: null, sectionId: null })),
   });
   usePlayer.setState({ playing: !!sched, scope, bar: null, sectionId: null });
 }
 
 export function stopPlayer() {
+  for (const h of playerStopHooks) h();
   stopTransport();
   usePlayer.setState({ playing: false, scope: null, bar: null, sectionId: null });
 }

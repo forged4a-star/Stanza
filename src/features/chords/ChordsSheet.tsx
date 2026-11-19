@@ -26,11 +26,13 @@ import { Button, Chip, Icon, IconButton, Row, SectionTitle, Segmented, ToggleRow
 import { displayText, font, radius, space, useTheme } from '../../ui/theme';
 import { GuitarDiagram, PianoKeys } from './ChordDiagram';
 import { VolumeSlider } from './VolumeSlider';
+import { PracticeTab } from './PracticeTab';
+import { TunerPanel } from './TunerPanel';
 import { FN_COLOURS } from './ChordPicker';
 import { CircleOfFifths } from './CircleOfFifths';
 import { playScope, stopPlayer, togglePlay, usePlayer } from './player';
 
-type Tab = 'play' | 'circle' | 'ideas' | 'shapes' | 'detect';
+type Tab = 'play' | 'practice' | 'circle' | 'ideas' | 'shapes' | 'detect';
 
 /** The section new chords go to: the one being edited, else the first. */
 function targetSection() {
@@ -57,6 +59,7 @@ export function ChordsSheet({ visible, onClose }: { visible: boolean; onClose: (
           onChange={setTab}
           options={[
             { value: 'play', label: 'Play' },
+            { value: 'practice', label: 'Practice' },
             { value: 'circle', label: 'Circle' },
             { value: 'ideas', label: 'Ideas' },
             { value: 'shapes', label: 'Shapes' },
@@ -67,10 +70,11 @@ export function ChordsSheet({ visible, onClose }: { visible: boolean; onClose: (
       </View>
       <ScrollView contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.xxl }}>
         {tab === 'play' && <PlayTab />}
+        {tab === 'practice' && <PracticeTab />}
         {tab === 'circle' && <CircleTab />}
         {tab === 'ideas' && <IdeasTab />}
         {tab === 'shapes' && <ShapesTab />}
-        {tab === 'detect' && <DetectTab active={visible} />}
+        {tab === 'detect' && <ListenTab active={visible} />}
       </ScrollView>
     </BottomSheet>
   );
@@ -450,6 +454,24 @@ function ShapesTab() {
 }
 
 // ------------------------------------------------------------------ detect
+
+function ListenTab({ active }: { active: boolean }) {
+  const [mode, setMode] = useState<'chords' | 'tuner'>('chords');
+  return (
+    <View style={{ gap: space.md }}>
+      <Segmented
+        value={mode}
+        onChange={setMode}
+        options={[
+          { value: 'chords', label: 'Name a chord' },
+          { value: 'tuner', label: 'Tuner and drone' },
+        ]}
+        testID="listen-mode"
+      />
+      {mode === 'chords' ? <DetectTab active={active} /> : <TunerPanel active={active} />}
+    </View>
+  );
+}
 
 function DetectTab({ active }: { active: boolean }) {
   const t = useTheme();

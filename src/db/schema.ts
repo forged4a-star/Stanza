@@ -122,6 +122,30 @@ export const MIGRATIONS: string[] = [
   );
   CREATE INDEX edit_log_song ON edit_log(song_id, at);
   `,
+  // 3: song goals and setlists
+  `
+  CREATE TABLE song_goals (
+    song_id TEXT PRIMARY KEY NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+    data TEXT NOT NULL,
+    due_at INTEGER,
+    created_at INTEGER NOT NULL
+  );
+  CREATE TABLE setlists (
+    id TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE setlist_items (
+    id TEXT PRIMARY KEY NOT NULL,
+    setlist_id TEXT NOT NULL REFERENCES setlists(id) ON DELETE CASCADE,
+    song_id TEXT NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+    sort INTEGER NOT NULL,
+    transpose INTEGER NOT NULL DEFAULT 0,
+    note TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX setlist_items_list ON setlist_items(setlist_id, sort);
+  `,
 ];
 
 export async function migrate(db: Db): Promise<void> {

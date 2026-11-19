@@ -20,6 +20,7 @@
  * it does not convert rates) and normalised to a common level.
  */
 import { AudioContext, type AudioBuffer, type AudioBufferSourceNode, type GainNode } from 'react-native-audio-api';
+import { droneFreqs, droneLoop } from '../core/audio/drone';
 import { noteEnds, planChunks, renderChunk, type MixClick, type MixNote } from '../core/audio/mixdown';
 import { buildSchedule, chordGain, chordNotes, type PatternId, type Schedule } from '../core/audio/patterns';
 import type { CustomStrum } from '../core/audio/strums';
@@ -83,10 +84,12 @@ export function setAudioLatency(mode: AudioLatency) {
   latency = mode;
   if (!ctx) return;
   stopTransport();
+  stopDrone();
   const old = ctx;
   ctx = null;
   master = null;
   live = [];
+  drone = [];
   noteCache.clear();
   clickCache.clear();
   safe(() => void old.close());
@@ -265,11 +268,62 @@ export function stopAll() {
   for (const v of live) fadeOut(v, t);
 }
 
+// ------------------------------------------------------------------ drone
+
+/** Each drone note is one looping source (a seamless one-second buffer), so a drone is two or three sources however long it sounds. */
+interface DroneVoice {
+  src: AudioBufferSourceNode;
+  gain: GainNode;
+}
+let drone: DroneVoice[] = [];
+const DRONE_FADE = 0.2;
+
+/** Start a steady reference tone on these notes (replacing any drone already sounding). */
+export function startDrone(midis: number[]) {
+  stopDrone();
+  if (!midis.length) return;
+  const c = context();
+  const t = c.currentTime;
+  const per = 0.55 / Math.sqrt(midis.length);
+  droneFreqs(midis).forEach((f) => {
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(per, t + DRONE_FADE);
+    gain.connect(master!);
+    const src = c.createBufferSource();
+    src.buffer = toBuffer(droneLoop(f, c.sampleRate));
+    src.loop = true;
+    src.connect(gain);
+    src.start(t);
+    drone.push({ src, gain });
+  });
+}
+
+/** Fade the drone out and release it. */
+export function stopDrone() {
+  if (!ctx || !drone.length) {
+    drone = [];
+    return;
+  }
+  const t = ctx.currentTime;
+  for (const v of drone) {
+    safe(() => {
+      v.gain.gain.cancelScheduledValues(t);
+      v.gain.gain.setValueAtTime(v.gain.gain.value, t);
+      v.gain.gain.linearRampToValueAtTime(0, t + DRONE_FADE);
+      v.src.stop(t + DRONE_FADE + 0.02);
+    });
+  }
+  drone = [];
+}
+
+export const isDroning = () => drone.length > 0;
+
 /** What the engine is holding right now (for tests and the audio check in Settings). */
 export function engineStats() {
   return {
     /** sources playing or queued: stays at a handful whatever the song */
-    voices: live.length,
+    voices: live.length + drone.length,
     /** chunks rendered for the current transport */
     chunks: run?.chunksRendered ?? 0,
     /** note sounds cached */

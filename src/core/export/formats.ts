@@ -12,6 +12,8 @@ export interface ExportOptions {
   transpose?: number;
   /** show Roman numerals instead of chord names (chord chart only) */
   roman?: boolean;
+  /** hand-off note: quote the locked lines (otherwise only say how many there are) */
+  handoffLyrics?: boolean;
 }
 
 const titleOf = (doc: SongDoc) => doc.song.title.trim() || 'Untitled';

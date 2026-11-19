@@ -11,12 +11,13 @@ import { sectionDisplayNames } from '../../core/model';
 import { useSong } from '../../store/song';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { EnergyMap } from './EnergyMap';
+import { OverviewTab } from './OverviewTab';
 import { Chip, Row, SectionTitle, Segmented, Slider } from '../../ui/kit';
 import { font, radius, space, useTheme } from '../../ui/theme';
 
-type Tab = 'feeling' | 'energy' | 'contrast' | 'questions';
+type Tab = 'overview' | 'feeling' | 'energy' | 'contrast' | 'questions';
 
-export function ShapeSheet({ visible, onClose, initialTab = 'feeling', header }: { visible: boolean; onClose: () => void; initialTab?: Tab; header?: ReactNode }) {
+export function ShapeSheet({ visible, onClose, initialTab = 'overview', header }: { visible: boolean; onClose: () => void; initialTab?: Tab; header?: ReactNode }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Shape" height={0.82} light testID="shape-sheet">
@@ -27,6 +28,7 @@ export function ShapeSheet({ visible, onClose, initialTab = 'feeling', header }:
             value={tab}
             onChange={setTab}
             options={[
+              { value: 'overview', label: 'Overview' },
               { value: 'feeling', label: 'Feeling' },
               { value: 'energy', label: 'Energy' },
               { value: 'contrast', label: 'Contrast' },
@@ -34,6 +36,7 @@ export function ShapeSheet({ visible, onClose, initialTab = 'feeling', header }:
             ]}
           />
         </View>
+        {tab === 'overview' && <OverviewTab />}
         {tab === 'feeling' && <FeelingMap />}
         {tab === 'energy' && <EnergyMap />}
         {tab === 'contrast' && <ContrastMeter />}

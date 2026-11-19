@@ -583,3 +583,24 @@ Found by reading the native engine's source, not just testing in a browser:
   - **Song**: details (status, key, tempo, capo, folder, tags), share and Stage view, history (versions and replay), duplicate and trash, plus the View and Export tabs.
 - Sheets can now render as full pages (`SheetInline` in `src/ui/BottomSheet.tsx`); quick tools still slide up as sheets.
 - Browser tests use `e2e/nav.cjs`, which switches to the right tab before using a control.
+
+## Round: ten more ideas (overview, goals, practice, tuner, A/B, hand-off, setlists, stage upgrades, open-mic)
+
+All of these are on the tabs from the reorganised song screen; nothing here writes or suggests lyrics.
+
+- **Shape > Overview**: your sections drawn as blocks as wide as they are long, a heat strip for words, chords and melody, and plain notes ("the chorus only comes round once", "Bridge is the longest part"). Chord rate is per bar of the chord grid. `core/song/overview.ts`.
+- **Goals** (Shape page): "two verses and a chorus by Friday". A goal is a short list of things to have plus an optional day; progress is counted from the song itself. A section counts once it has two written lines. New table `song_goals` (migration 3). `core/song/goals.ts`.
+- **Practice loop** (Music > Practice): pick a section and a bar range; it plays them slowly and steps the tempo up to the song's tempo. Each pass is its own short run, so there can be a very short gap between passes. The song's own tempo is never changed. `core/audio/practice.ts`, `features/chords/practice.ts`.
+- **Tuner and drone** (Music > Listen > Tuner and drone): a steady root, root+fifth or open tone for the song's key (each note is one seamless looping buffer, so it is two or three audio sources however long it plays), and a microphone tuner built on the existing pitch detector. `core/audio/drone.ts`, `core/dsp/tuner.ts`.
+- **A/B takes** (Takes > a take's menu > Compare): two takes, one play button, switch between them at the same moment, with the louder take turned down to match. `features/takes/ABPanel.tsx`, `core/dsp/level.ts`.
+- **Hand-off note** (Song > Export): a plain-text "what's done, what's open" for a co-writer, with open comments, and the count of locked lines to leave alone. It never contains the lyrics (locked lines are quoted only if you tick the option). `core/export/handoff.ts`.
+- **Setlists** (Library > Setlists): ordered songs with a chord shift and a note on each, total time, a warning for big key jumps, and a shareable run sheet. New tables `setlists` and `setlist_items` (migration 3). Songs in the Trash drop out of the set and return if restored.
+- **Stage view**: high contrast (pure black and white, yellow chords) and a music-stand layout (pages, tap the right side for next, left for back; two pages side by side on a wide screen). Both are remembered. Page heights are estimated from the text size, so a very unusual font could push a line slightly off a page.
+- **Open-mic mode** (Song > Open-mic mode, or Play the set): a count-in, then the words scroll for the length of the song and it offers to go again or start the next song in the set. Chords are moved by the set's shift and spelled for the new key.
+
+Also: tab rows with five or more options now scroll sideways instead of cutting the words off.
+
+### Not tried on a phone
+- The tuner reads the real microphone only in the browser test (a recorded hum). Phone microphones and rooms may need the thresholds adjusted.
+- The drone, practice loop and A/B playback are tested in the browser; the Android output (and whether the practice loop's gap between passes is audible) needs a listen.
+- Stage pages are only tested on a phone-sized browser; tablet layout (two pages) is covered by unit tests only.

@@ -43,7 +43,7 @@ export default function Library() {
   const [songs, setSongs] = useState<repo.SongListItem[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [tags, setTags] = useState<{ tag: string; count: number }[]>([]);
-  const [counts, setCounts] = useState({ inbox: 0, scraps: 0 });
+  const [counts, setCounts] = useState({ inbox: 0, scraps: 0, sets: 0 });
   const [importing, setImporting] = useState(false);
 
   const load = useCallback(async () => {
@@ -51,7 +51,7 @@ export default function Library() {
     setSongs(await repo.listSongs(db, { query, status, folderId: folder, tag, trash }));
     setFolders(await repo.listFolders(db));
     setTags(await repo.allTags(db));
-    setCounts({ inbox: (await repo.listIdeas(db)).length, scraps: (await repo.listScraps(db, '', 10000)).length });
+    setCounts({ inbox: (await repo.listIdeas(db)).length, scraps: (await repo.listScraps(db, '', 10000)).length, sets: (await repo.listSetlists(db)).length });
   }, [query, status, folder, tag, trash]);
 
   useFocusEffect(
@@ -185,6 +185,9 @@ export default function Library() {
                 <Shortcut icon="file-tray-outline" label="Inbox" count={counts.inbox} onPress={() => router.push('/inbox')} testID="open-inbox-screen" />
                 <Shortcut icon="trash-bin-outline" label="Scrapyard" count={counts.scraps} onPress={() => router.push('/scrapyard')} testID="open-scrapyard" />
               </Row>
+              <Row style={{ marginBottom: space.sm }}>
+                <Shortcut icon="list-outline" label="Setlists" count={counts.sets} onPress={() => router.push('/setlists')} testID="open-setlists" />
+              </Row>
             </View>
           ) : undefined
         }
@@ -261,7 +264,7 @@ export default function Library() {
   );
 }
 
-function Shortcut({ icon, label, count, onPress, testID }: { icon: 'file-tray-outline' | 'trash-bin-outline'; label: string; count: number; onPress: () => void; testID?: string }) {
+function Shortcut({ icon, label, count, onPress, testID }: { icon: 'file-tray-outline' | 'trash-bin-outline' | 'list-outline'; label: string; count: number; onPress: () => void; testID?: string }) {
   const t = useTheme();
   return (
     <Pressable onPress={onPress} style={[styles.shortcut, cardStyle(t), { borderRadius: t.r.lg }]} accessibilityRole="button" testID={testID}>

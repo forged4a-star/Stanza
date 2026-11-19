@@ -217,6 +217,70 @@ describe('writing history', () => {
   it('the database migrates to the new version', async () => {
     const db = await openTestDb();
     const row = await db.first<{ user_version: number }>('PRAGMA user_version');
-    expect(row?.user_version).toBeGreaterThanOrEqual(2);
+    expect(row?.user_version).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('song goals', () => {
+  it('saves, replaces and clears one goal per song', async () => {
+    const db = await openTestDb();
+    const doc = await repo.createSong(db, { title: 'G' });
+    expect(await repo.getGoal(db, doc.song.id)).toBeNull();
+    await repo.saveGoal(db, doc.song.id, { reqs: [{ type: 'take', count: 1 }], dueAt: 123, createdAt: 1 });
+    await repo.saveGoal(db, doc.song.id, { reqs: [{ type: 'sections', kind: 'verse', count: 2 }], dueAt: null, createdAt: 1 });
+    expect(await repo.getGoal(db, doc.song.id)).toEqual({ reqs: [{ type: 'sections', kind: 'verse', count: 2 }], dueAt: null, createdAt: 1 });
+    await repo.clearGoal(db, doc.song.id);
+    expect(await repo.getGoal(db, doc.song.id)).toBeNull();
+  });
+  it('goes away with its song', async () => {
+    const db = await openTestDb();
+    const doc = await repo.createSong(db, { title: 'G' });
+    await repo.saveGoal(db, doc.song.id, { reqs: [{ type: 'take', count: 1 }], dueAt: null, createdAt: 1 });
+    await db.run('DELETE FROM songs WHERE id = ?', [doc.song.id]);
+    expect((await db.first<{ n: number }>('SELECT COUNT(*) AS n FROM song_goals'))?.n).toBe(0);
+  });
+});
+
+describe('setlists', () => {
+  it('builds, reorders, edits and deletes a set', async () => {
+    const db = await openTestDb();
+    const a = await repo.createSong(db, { title: 'A' });
+    const b = await repo.createSong(db, { title: 'B' });
+    const id = await repo.createSetlist(db, '  Friday ');
+    const i1 = await repo.addToSetlist(db, id, a.song.id);
+    const i2 = await repo.addToSetlist(db, id, b.song.id);
+    const i3 = await repo.addToSetlist(db, id, a.song.id); // an encore of the same song
+    let set = (await repo.getSetlist(db, id))!;
+    expect(set.name).toBe('Friday');
+    expect(set.items.map((i) => i.songId)).toEqual([a.song.id, b.song.id, a.song.id]);
+    await repo.reorderSetlist(db, id, [i3, i1, i2]);
+    set = (await repo.getSetlist(db, id))!;
+    expect(set.items.map((i) => i.id)).toEqual([i3, i1, i2]);
+    await repo.updateSetlistItem(db, i1, { transpose: 40, note: 'capo up' });
+    expect((await repo.getSetlist(db, id))!.items.find((i) => i.id === i1)).toMatchObject({ transpose: 11, note: 'capo up' });
+    await repo.removeFromSetlist(db, i3);
+    expect((await repo.getSetlist(db, id))!.items).toHaveLength(2);
+    expect(await repo.listSetlists(db)).toMatchObject([{ id, name: 'Friday', songs: 2 }]);
+    await repo.renameSetlist(db, id, 'Saturday');
+    expect((await repo.getSetlist(db, id))!.name).toBe('Saturday');
+    await repo.deleteSetlist(db, id);
+    expect(await repo.getSetlist(db, id)).toBeNull();
+    expect((await db.first<{ n: number }>('SELECT COUNT(*) AS n FROM setlist_items'))?.n).toBe(0);
+  });
+  it('hides songs in the Trash and shows them again once restored', async () => {
+    const db = await openTestDb();
+    const a = await repo.createSong(db, { title: 'A' });
+    const b = await repo.createSong(db, { title: 'B' });
+    const id = await repo.createSetlist(db, 'Set');
+    await repo.addToSetlist(db, id, a.song.id);
+    await repo.addToSetlist(db, id, b.song.id);
+    await repo.trashSong(db, a.song.id);
+    expect((await repo.getSetlist(db, id))!.items.map((i) => i.songId)).toEqual([b.song.id]);
+    expect((await repo.listSetlists(db))[0].songs).toBe(1);
+    await db.run('UPDATE songs SET deleted_at = NULL WHERE id = ?', [a.song.id]);
+    expect((await repo.getSetlist(db, id))!.items).toHaveLength(2);
+  });
+  it('returns null for a missing set', async () => {
+    expect(await repo.getSetlist(await openTestDb(), 'nope')).toBeNull();
   });
 });

@@ -3,6 +3,7 @@
  * inside a transaction. Nothing here knows about React.
  */
 import { compact, type EditEvent } from '../core/lyrics/replay';
+import { parseGoal, type Goal } from '../core/song/goals';
 import {
   type ChordBar,
   type Folder,
@@ -1025,4 +1026,113 @@ export async function compactEditEvents(db: Db, songId: string, limit = 4000, ke
     await addEditEvents(d, songId, folded);
     return true;
   });
+}
+
+// ------------------------------------------------------------------ goals
+
+export async function getGoal(d: SqlDriver, songId: string): Promise<Goal | null> {
+  const r = await d.first<Row>(`SELECT data FROM song_goals WHERE song_id = ?`, [songId]);
+  return r ? parseGoal(r.data) : null;
+}
+
+export async function saveGoal(d: SqlDriver, songId: string, goal: Goal): Promise<void> {
+  await d.run(
+    `INSERT INTO song_goals (song_id, data, due_at, created_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT(song_id) DO UPDATE SET data = excluded.data, due_at = excluded.due_at`,
+    [songId, JSON.stringify(goal), goal.dueAt, goal.createdAt]
+  );
+}
+
+export async function clearGoal(d: SqlDriver, songId: string): Promise<void> {
+  await d.run(`DELETE FROM song_goals WHERE song_id = ?`, [songId]);
+}
+
+// ------------------------------------------------------------------ setlists
+
+export interface SetlistSummary {
+  id: string;
+  name: string;
+  songs: number;
+  updatedAt: number;
+}
+
+export interface SetlistItem {
+  id: string;
+  songId: string;
+  sort: number;
+  transpose: number;
+  note: string;
+}
+
+export interface SetlistWithItems {
+  id: string;
+  name: string;
+  items: SetlistItem[];
+}
+
+export async function listSetlists(d: SqlDriver): Promise<SetlistSummary[]> {
+  const rows = await d.all<Row>(
+    `SELECT l.id, l.name, l.updated_at,
+            (SELECT COUNT(*) FROM setlist_items i JOIN songs s ON s.id = i.song_id WHERE i.setlist_id = l.id AND s.deleted_at IS NULL) AS n
+     FROM setlists l ORDER BY l.updated_at DESC`
+  );
+  return rows.map((r) => ({ id: r.id, name: r.name, songs: Number(r.n), updatedAt: Number(r.updated_at) }));
+}
+
+export async function createSetlist(d: SqlDriver, name: string): Promise<string> {
+  const id = newId();
+  const now = Date.now();
+  await d.run(`INSERT INTO setlists (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)`, [id, name.trim() || 'Setlist', now, now]);
+  return id;
+}
+
+export async function renameSetlist(d: SqlDriver, id: string, name: string): Promise<void> {
+  await d.run(`UPDATE setlists SET name = ?, updated_at = ? WHERE id = ?`, [name.trim() || 'Setlist', Date.now(), id]);
+}
+
+export async function deleteSetlist(d: SqlDriver, id: string): Promise<void> {
+  await d.run(`DELETE FROM setlists WHERE id = ?`, [id]);
+}
+
+const touchSetlist = (d: SqlDriver, id: string) => d.run(`UPDATE setlists SET updated_at = ? WHERE id = ?`, [Date.now(), id]);
+
+/** A setlist with its songs in order. Songs in the Trash are left out (they come back when restored). */
+export async function getSetlist(d: SqlDriver, id: string): Promise<SetlistWithItems | null> {
+  const l = await d.first<Row>(`SELECT id, name FROM setlists WHERE id = ?`, [id]);
+  if (!l) return null;
+  const rows = await d.all<Row>(
+    `SELECT i.id, i.song_id, i.sort, i.transpose, i.note FROM setlist_items i JOIN songs s ON s.id = i.song_id
+     WHERE i.setlist_id = ? AND s.deleted_at IS NULL ORDER BY i.sort, i.rowid`,
+    [id]
+  );
+  return { id: l.id, name: l.name, items: rows.map((r) => ({ id: r.id, songId: r.song_id, sort: Number(r.sort), transpose: Number(r.transpose), note: r.note })) };
+}
+
+/** Add a song at the end. The same song can appear twice (an encore, a reprise). */
+export async function addToSetlist(d: SqlDriver, setlistId: string, songId: string): Promise<string> {
+  const id = newId();
+  const max = await d.first<Row>(`SELECT coalesce(max(sort), -1) AS m FROM setlist_items WHERE setlist_id = ?`, [setlistId]);
+  await d.run(`INSERT INTO setlist_items (id, setlist_id, song_id, sort) VALUES (?, ?, ?, ?)`, [id, setlistId, songId, Number(max?.m ?? -1) + 1]);
+  await touchSetlist(d, setlistId);
+  return id;
+}
+
+export async function removeFromSetlist(d: SqlDriver, itemId: string): Promise<void> {
+  const r = await d.first<Row>(`SELECT setlist_id FROM setlist_items WHERE id = ?`, [itemId]);
+  await d.run(`DELETE FROM setlist_items WHERE id = ?`, [itemId]);
+  if (r) await touchSetlist(d, r.setlist_id);
+}
+
+export async function reorderSetlist(db: Db, setlistId: string, orderedItemIds: string[]): Promise<void> {
+  await db.tx(async (d) => {
+    for (let i = 0; i < orderedItemIds.length; i++) await d.run(`UPDATE setlist_items SET sort = ? WHERE id = ? AND setlist_id = ?`, [i, orderedItemIds[i], setlistId]);
+    await touchSetlist(d, setlistId);
+  });
+}
+
+export async function updateSetlistItem(d: SqlDriver, itemId: string, patch: { transpose?: number; note?: string }): Promise<void> {
+  if (patch.transpose !== undefined) await d.run(`UPDATE setlist_items SET transpose = ? WHERE id = ?`, [Math.max(-11, Math.min(11, Math.round(patch.transpose))), itemId]);
+  if (patch.note !== undefined) await d.run(`UPDATE setlist_items SET note = ? WHERE id = ?`, [patch.note, itemId]);
+  const r = await d.first<Row>(`SELECT setlist_id FROM setlist_items WHERE id = ?`, [itemId]);
+  if (r) await touchSetlist(d, r.setlist_id);
 }

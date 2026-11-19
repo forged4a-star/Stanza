@@ -66,6 +66,10 @@ export interface Settings {
   avoidBarres: boolean;
   /** lyric size in the chord sheet */
   sheetSize: number;
+  /** stage view: pure black and white with yellow chords, for dark rooms */
+  stageContrast: boolean;
+  /** stage view: scroll along, or turn pages like a music stand */
+  stageLayout: 'scroll' | 'pages';
   /** chord suggestion extras */
   suggestBorrowed: boolean;
   suggestSecondary: boolean;
@@ -104,6 +108,8 @@ export const DEFAULT_SETTINGS: Settings = {
   constraint: null,
   avoidBarres: false,
   sheetSize: 20,
+  stageContrast: false,
+  stageLayout: 'scroll',
   suggestBorrowed: false,
   suggestSecondary: false,
   suggestPivots: false,
@@ -137,7 +143,7 @@ export const useSettings = create<SettingsStore>((set, get) => ({
     const db = await getDb();
     const saved = await repo.getSetting<Partial<Settings>>(db, 'prefs', {});
     // saved looks and tweaks may be from another version or hand-edited: keep only what is valid
-    set({ ...DEFAULT_SETTINGS, ...saved, look: lookById(saved.look).id, custom: sanitizeCustom(saved.custom), loaded: true });
+    set({ ...DEFAULT_SETTINGS, ...saved, stageLayout: saved.stageLayout === 'pages' ? 'pages' : 'scroll', look: lookById(saved.look).id, custom: sanitizeCustom(saved.custom), loaded: true });
   },
   set: (patch) => {
     set(patch);

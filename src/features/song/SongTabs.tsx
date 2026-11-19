@@ -11,6 +11,7 @@ import { flushSaves, useSong } from '../../store/song';
 import { alpha } from '../../ui/color';
 import { Icon } from '../../ui/kit';
 import { ProgressRing } from '../../ui/ProgressRing';
+import { GoalCard } from '../shape/GoalSheet';
 import { font, space, TAP, useTheme } from '../../ui/theme';
 import { useCardBreaks } from '../cards/CardSheet';
 
@@ -162,6 +163,7 @@ export function ShapeHeader({ onOpen }: { onOpen: (a: 'web' | 'arrange' | 'compa
           </View>
         </View>
       )}
+      <GoalCard />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
         <ToolPill icon="reorder-three" label="Arrange sections" onPress={() => onOpen('arrange')} testID="open-arrange" />
         <ToolPill icon="git-compare-outline" label="Compare sections" onPress={() => onOpen('compare')} testID="open-compare" />

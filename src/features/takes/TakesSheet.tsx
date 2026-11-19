@@ -9,11 +9,12 @@ import { decodeStored } from '../../audio/decode';
 import { contourOf, wordMoves, type Contour } from '../../core/dsp/contour';
 import { router } from 'expo-router';
 import { findLine, flushSaves, useSong } from '../../store/song';
+import { ABPanel } from './ABPanel';
 import { ChartSheet } from './ChartSheet';
 import { ContourView } from './ContourView';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { askText, choose, confirm, toast } from '../../ui/Dialogs';
-import { Empty, Icon, IconButton, SectionTitle, Segmented } from '../../ui/kit';
+import { Button, Empty, Icon, IconButton, SectionTitle, Segmented } from '../../ui/kit';
 import { alpha } from '../../ui/color';
 import { font, radius, space, useTheme } from '../../ui/theme';
 import { exportTake } from '../export/exportActions';
@@ -50,7 +51,7 @@ export function useTakePlayer() {
   return { toggle, stop, current, playing: status.playing, position: status.currentTime, duration: status.duration };
 }
 
-export function TakeRow({ rec, player, onChanged, context }: { rec: Recording; player: ReturnType<typeof useTakePlayer>; onChanged: () => void; context?: string }) {
+export function TakeRow({ rec, player, onChanged, context, onCompare, compareWith }: { rec: Recording; player: ReturnType<typeof useTakePlayer>; onChanged: () => void; context?: string; /** start or finish an A/B comparison with this take */ onCompare?: (rec: Recording) => void; /** the take already picked as A, if any */ compareWith?: Recording | null }) {
   const t = useTheme();
   const isCur = player.current === rec.id;
   const doc = useSong((st) => st.doc);
@@ -78,12 +79,14 @@ export function TakeRow({ rec, player, onChanged, context }: { rec: Recording; p
       { label: 'Rename', value: 'rename' },
       { label: rec.starred ? 'Unstar' : 'Star as best take', value: 'star' },
       ...(doc && rec.songId === doc.song.id ? [{ label: 'Chords from this take', value: 'chart' }] : []),
+      ...(onCompare ? [{ label: compareWith && compareWith.id !== rec.id ? `Compare with “${compareWith.title}”` : 'Compare with another take (A/B)', value: 'compare' }] : []),
       { label: 'Edit transcript', value: 'transcript' },
       { label: 'Share audio', value: 'share' },
       ...(rec.songId ? [{ label: 'Move to Inbox', value: 'inbox' }] : []),
       { label: 'Delete take', value: 'delete', danger: true },
     ]);
     if (v === 'chart') return setChart(true);
+    if (v === 'compare') return onCompare?.(rec);
     const db = await getDb();
     if (v === 'rename') {
       const name = await askText('Take name', rec.title);
@@ -167,6 +170,19 @@ export function TakesSheet({ visible, onClose, header }: { visible: boolean; onC
   const activeLineId = useSong((s) => s.activeLineId);
   const player = useTakePlayer();
   const [filter, setFilter] = useState<'all' | 'section' | 'starred'>('all');
+  const [first, setFirst] = useState<Recording | null>(null);
+  const [pair, setPair] = useState<[Recording, Recording] | null>(null);
+  const compare = (rec: Recording) => {
+    if (first && first.id !== rec.id) {
+      player.stop();
+      setPair([first, rec]);
+      setFirst(null);
+    } else if (first) setFirst(null);
+    else {
+      setFirst(rec);
+      toast(`Now open the menu on the take to compare with “${rec.title}”`);
+    }
+  };
 
   useEffect(() => {
     if (visible) void useSong.getState().reloadRecordings();
@@ -202,12 +218,19 @@ export function TakesSheet({ visible, onClose, header }: { visible: boolean; onC
       {!header && filter_}
       <ScrollView contentContainerStyle={{ paddingBottom: space.xxl }}>
         {header}
+        {pair && <ABPanel a={pair[0]} b={pair[1]} onClose={() => setPair(null)} />}
+        {first && (
+          <View style={{ marginHorizontal: space.lg, marginTop: space.sm, padding: space.md, borderRadius: t.r.md, backgroundColor: alpha(t.accent, 0.12), flexDirection: 'row', alignItems: 'center', gap: space.sm }} testID="ab-picking">
+            <Text style={{ flex: 1, color: t.text, fontSize: font.small + 1 }}>Comparing with “{first.title}”: open the ⋯ menu on another take and choose Compare.</Text>
+            <Button compact title="Cancel" onPress={() => setFirst(null)} />
+          </View>
+        )}
         {header && <SectionTitleRow />}
         {header && filter_}
         {list.length === 0 ? (
           <Empty icon="mic-outline" title="No takes here yet" hint="Tap the record button. A take attaches to the line or section you're on." />
         ) : (
-          list.map((r) => <TakeRow key={r.id} rec={r} player={player} context={where(r)} onChanged={() => void useSong.getState().reloadRecordings()} />)
+          list.map((r) => <TakeRow key={r.id} rec={r} player={player} context={where(r)} onChanged={() => void useSong.getState().reloadRecordings()} onCompare={recordings.length > 1 ? compare : undefined} compareWith={first} />)
         )}
         {!header && <Pressable
           onPress={async () => {

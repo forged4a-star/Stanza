@@ -59,6 +59,7 @@ vi.mock('react-native-audio-api', () => {
   class BufferSource {
     buffer: { rate: number; data?: Float32Array | null } | null = null;
     started = false;
+    loop = false;
     rec = { start: -1, stop: null as number | null, bufferRate: 0, gainNode: null as unknown, disconnected: false, buffer: null as unknown };
     set onended(_: unknown) {
       state.endedHandlersSet++;
@@ -74,6 +75,7 @@ vi.mock('react-native-audio-api', () => {
       this.rec.start = t;
       this.rec.bufferRate = this.buffer!.rate;
       this.rec.buffer = this.buffer;
+      (this.rec as { loop?: boolean }).loop = this.loop;
       state.sources.push(this.rec);
     }
     stop(t: number) {
@@ -116,7 +118,7 @@ vi.mock('react-native-audio-api', () => {
 });
 
 import { softClipCurve } from '../core/audio/softclip';
-import { engineStats, playNote, prepare, previewChord, setVolume, startTransport, stopTransport } from './engine';
+import { engineStats, isDroning, playNote, prepare, previewChord, setVolume, startDrone, startTransport, stopDrone, stopTransport } from './engine';
 
 beforeEach(() => {
   stopTransport();
@@ -307,5 +309,37 @@ describe('audio engine: every way it has gone wrong on a phone', () => {
     expect(at(1)).toBeGreaterThan(0.85);
     for (let i = 1; i < c.length; i++) expect(c[i]).toBeGreaterThanOrEqual(c[i - 1]);
     expect(state.curve).not.toBeNull();
+  });
+});
+
+describe('drone', () => {
+  it('is one looping source per note, faded in, and only a handful whatever the length', () => {
+    state.sources = [];
+    startDrone([43, 50]);
+    expect(isDroning()).toBe(true);
+    expect(state.sources).toHaveLength(2);
+    for (const s of state.sources as { loop?: boolean; bufferRate: number }[]) {
+      expect(s.loop).toBe(true);
+      expect(s.bufferRate).toBe(state.contextRate);
+    }
+    // an hour of drone adds nothing: it is the same two sources
+    advance(5);
+    expect(state.sources).toHaveLength(2);
+    expect(engineStats().voices).toBeGreaterThanOrEqual(2);
+  });
+  it('fades out on stop, and replaces itself instead of stacking', () => {
+    state.sources = [];
+    startDrone([40]);
+    startDrone([45, 52, 57]);
+    expect(state.sources).toHaveLength(4);
+    const first = state.sources[0];
+    expect(first.stop).not.toBeNull(); // the first drone was released when replaced
+    stopDrone();
+    expect(isDroning()).toBe(false);
+    for (const s of state.sources) expect(s.stop).not.toBeNull();
+  });
+  it('stopping with no drone is harmless', () => {
+    stopDrone();
+    expect(isDroning()).toBe(false);
   });
 });

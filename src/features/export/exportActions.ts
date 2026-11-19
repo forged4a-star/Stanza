@@ -1,6 +1,8 @@
 import type { SongDoc } from '../../core/model';
 import { chordChartHtml, lyricSheetHtml, safeFileName, toChordPro, toMidi, toPlainText, type ExportOptions } from '../../core/export/formats';
 import { chordSheetText } from '../../core/export/chordSheet';
+import { handoffSummary } from '../../core/export/handoff';
+import { useCollab } from '../../collab/collab';
 import { buildProjectZip, extForMime, readProjectZip } from '../../core/export/projectZip';
 import { readAudio, writeAudio } from '../../audio/storage';
 import { getDb } from '../../db/client';
@@ -8,7 +10,7 @@ import * as repo from '../../db/repo';
 import { pickFile, shareFile, sharePdf } from '../../platform/share';
 import { flushSaves } from '../../store/song';
 
-export type ExportKind = 'txt' | 'chordsheet' | 'pdf-lyrics' | 'pdf-chords' | 'chordpro' | 'midi' | 'zip';
+export type ExportKind = 'txt' | 'chordsheet' | 'pdf-lyrics' | 'pdf-chords' | 'chordpro' | 'midi' | 'zip' | 'handoff';
 
 export async function exportSong(doc: SongDoc, kind: ExportKind, opts: ExportOptions = {}): Promise<void> {
   await flushSaves();
@@ -26,6 +28,11 @@ export async function exportSong(doc: SongDoc, kind: ExportKind, opts: ExportOpt
       return shareFile(`${base}.cho`, 'text/plain', toChordPro(doc, opts));
     case 'midi':
       return shareFile(`${base}.mid`, 'audio/midi', toMidi(doc, opts));
+    case 'handoff': {
+      const takes = (await repo.listRecordings(await getDb(), doc.song.id)).length;
+      const comments = useCollab.getState().comments.filter((c) => !c.resolved).map((c) => `${c.author}: ${c.text}`);
+      return shareFile(`${base} - hand-off.txt`, 'text/plain', handoffSummary({ doc, takes, comments, includeLyrics: opts.handoffLyrics }));
+    }
     case 'zip': {
       const db = await getDb();
       const recs = await repo.listRecordings(db, doc.song.id);
