@@ -1,6 +1,6 @@
 /** Editing fixes: Enter, held Backspace across lines, paste, lyrics import, iambic mode, piano-roll touch. */
 const { chromium } = require('playwright');
-const { navId, closeTop } = require('./nav.cjs');
+const { navId, closeTop, openEditor } = require('./nav.cjs');
 const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
 const shots = process.argv[2] || null;
@@ -29,7 +29,7 @@ const shots = process.argv[2] || null;
   try {
     await page.goto(BASE);
     await id('lyric-page').waitFor({ timeout: 30000 });
-    await id('line-0-0-text').click();
+    await openEditor(page, 'line-0-0-text', 'section-0-input');
     const box = id('section-0-input');
 
     await check('Enter makes exactly one new line', async () => {

@@ -83,4 +83,14 @@ async function closeTop(page) {
   await page.waitForTimeout(400);
 }
 
-module.exports = { navId, closeTop, reach, WHERE };
+/** Tap a line until its editor is open (a tap in the instant after the page loads can land before it settles). */
+async function openEditor(page, line, input) {
+  for (let k = 0; k < 6; k++) {
+    await page.getByTestId(line).click();
+    await page.waitForTimeout(400);
+    if ((await page.getByTestId(input).count()) > 0) return;
+  }
+  throw new Error(`could not open the editor for ${line}`);
+}
+
+module.exports = { navId, closeTop, reach, openEditor, WHERE };
