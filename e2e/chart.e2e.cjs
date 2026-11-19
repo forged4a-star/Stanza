@@ -1,6 +1,6 @@
 /** Chords from a take: record a G chord, read it back as a chart, put it in a section. */
 const { chromium } = require('playwright');
-const { navId, closeTop } = require('./nav.cjs');
+const { navId, closeTop, openEditor } = require('./nav.cjs');
 const { chordWav } = require('./fixtures.cjs');
 const assert = require('node:assert/strict');
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
@@ -21,7 +21,7 @@ const BASE = process.env.BASE_URL || 'http://localhost:8081';
     await page.goto(BASE);
     await id('lyric-page').waitFor({ timeout: 30000 });
     await id('song-title').fill('Chart Song');
-    await id('line-0-0-text').click();
+    await openEditor(page, 'line-0-0-text', 'section-0-input');
     await id('section-0-input').pressSequentially('strummed on a guitar', { delay: 3 });
     await page.evaluate(() => document.activeElement && document.activeElement.blur());
     await page.waitForTimeout(400);

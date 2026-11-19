@@ -60,6 +60,17 @@ function navId(page) {
       get(target, prop) {
         const v = target[prop];
         if (typeof v !== 'function') return v;
+        if (prop === 'click' && /^line-\d+-\d+-text$/.test(testId))
+          return async (...args) => {
+            await reach(page, testId);
+            // a tap on a line just opens its editor; one that lands in the instant a page is still settling can be lost, so tap again
+            const input = `section-${testId.split('-')[1]}-input`;
+            for (let k = 0; k < 4; k++) {
+              await v.apply(target, args);
+              await page.waitForTimeout(350);
+              if ((await page.getByTestId(input).count()) > 0) return;
+            }
+          };
         if (ACTIONS.has(prop))
           return async (...args) => {
             await reach(page, testId);
