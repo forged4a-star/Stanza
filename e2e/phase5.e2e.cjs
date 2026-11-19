@@ -67,6 +67,7 @@ const shots = process.argv[2] || null;
       await id('open-song-sheet').click();
       await id('open-shape').click();
       await id('shape-sheet').waitFor();
+      await tab('Feeling');
       await page.waitForTimeout(450);
       await id('feeling-input-0').fill('restless');
       await id('feeling-input-1').fill('breaking open');
