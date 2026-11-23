@@ -13,7 +13,7 @@ const shots = process.argv[2] || null;
 
 (async () => {
   const browser = await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', `--use-file-for-fake-audio-capture=${humWav()}`, '--autoplay-policy=no-user-gesture-required'] });
-  const context = await browser.newContext({ viewport: { width: 400, height: 860 }, permissions: ['microphone'], acceptDownloads: true });
+  const context = await browser.newContext({ viewport: { width: 400, height: 860 }, permissions: ['microphone', 'clipboard-read', 'clipboard-write'], acceptDownloads: true });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -238,6 +238,42 @@ const shots = process.argv[2] || null;
       await tab('Details');
     });
 
+    await check('copy and paste: every text export can be copied instead of saved', async () => {
+      const clip = () => page.evaluate(() => navigator.clipboard.readText());
+      await id('open-song-sheet').click();
+      await tab('Export');
+      await id('copy-lyrics').click();
+      await page.getByText(/Copied\. Paste it anywhere/).first().waitFor();
+      assert.equal(await clip(), 'Batch Four\n\n[Verse]\nalpha line one\nbeta line two\ngamma line three\ndelta line four\n\n[Chorus]\nhey now one chorus line\nand a second chorus line\n');
+      // just the words, to paste into a document
+      await id('copy-labels').click();
+      await id('copy-lyrics').click();
+      await page.waitForTimeout(400);
+      assert.equal(await clip(), 'alpha line one\nbeta line two\ngamma line three\ndelta line four\n\nhey now one chorus line\nand a second chorus line\n');
+      await id('copy-labels').click();
+      await id('copy-chordsheet').click();
+      await page.waitForTimeout(400);
+      const sheet = await clip();
+      assert.match(sheet, /alpha line one/);
+      assert.match(sheet, /\| D \| G \| A \| Bm \|/);
+      await id('copy-chordpro').click();
+      await page.waitForTimeout(400);
+      assert.match(await clip(), /^\{title: Batch Four\}/);
+      await id('copy-handoff').click();
+      await page.waitForTimeout(500);
+      const note = await clip();
+      assert.match(note, /WHERE IT STANDS/);
+      assert.doesNotMatch(note, /alpha line one/);
+      await shot('copy');
+      await tab('Details');
+      // one section's words, from its menu
+      await id('tab-write').click();
+      await id('section-1-menu').click();
+      await id('dialog').getByRole('button', { name: 'Copy the words' }).click();
+      await page.waitForTimeout(400);
+      assert.equal(await clip(), 'hey now one chorus line\nand a second chorus line');
+    });
+
     await check('stage view: high contrast and page-turning like a music stand', async () => {
       await id('open-stage').click();
       await id('stage-view').waitFor();
@@ -337,6 +373,9 @@ const shots = process.argv[2] || null;
       assert.match(await id('setlist-item-1').innerText(), /Batch Four/);
       assert.match(await id('setlist-key-1').innerText(), /Key Eb/, 'the shift moved with its song');
       await shot('setlist');
+      await id('setlist-copy').click();
+      await page.waitForTimeout(400);
+      assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^Friday\n2 songs[^\n]*\n\n1\. Second Song/);
       // survives leaving and coming back
       await id('setlist-back').click();
       await id('setlists').waitFor();

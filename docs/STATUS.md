@@ -604,3 +604,9 @@ Also: tab rows with five or more options now scroll sideways instead of cutting 
 - The tuner reads the real microphone only in the browser test (a recorded hum). Phone microphones and rooms may need the thresholds adjusted.
 - The drone, practice loop and A/B playback are tested in the browser; the Android output (and whether the practice loop's gap between passes is audible) needs a listen.
 - Stage pages are only tested on a phone-sized browser; tablet layout (two pages) is covered by unit tests only.
+
+## Copy and paste export
+- Every plain-text export now has a **Copy** button next to it (Song tab > Export): lyrics, chord sheet, ChordPro and the hand-off note. A switch chooses whether a lyrics copy includes the title and `[Verse]` labels or only the words, with a blank line between sections.
+- A section's menu has **Copy the words**, and the setlist page has **Copy the run sheet**.
+- On the phone this uses `expo-clipboard` (a new native module, so it needs the new build; it is not in Expo Go's older builds of this app). In the browser it uses the browser clipboard, with a fallback. If the clipboard is blocked, the text is shown in a box to select by hand.
+- The lockfile gained only the one `expo-clipboard` entry (Expo's own installer is blocked in this environment, so it was added by hand and checked with `npm ci`).

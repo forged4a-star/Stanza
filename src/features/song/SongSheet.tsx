@@ -12,7 +12,7 @@ import { BottomSheet } from '../../ui/BottomSheet';
 import { askText, choose, confirm, toast } from '../../ui/Dialogs';
 import { Button, Chip, Field, ListItem, Row, SectionTitle, Segmented, ToggleRow } from '../../ui/kit';
 import { font, space, useTheme } from '../../ui/theme';
-import { exportSong, type ExportKind } from '../export/exportActions';
+import { copyExport, copyWithToast, exportSong, type CopyKind, type ExportKind } from '../export/exportActions';
 import { Share, Platform } from 'react-native';
 import { roomFor, shareSong, stopSharing, useCollab } from '../../collab/collab';
 
@@ -30,6 +30,7 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
   const [transpose, setTranspose] = useState(0);
   const [roman, setRoman] = useState(false);
   const [quoteLocked, setQuoteLocked] = useState(false);
+  const [labels, setLabels] = useState(true);
   const [busy, setBusy] = useState<ExportKind | null>(null);
 
   useEffect(() => {
@@ -52,6 +53,19 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
       toast('Export failed');
     } finally {
       setBusy(null);
+    }
+  };
+
+  /** copy a plain-text export; the words alone can leave out the title and [Verse] labels */
+  const copy = async (kind: CopyKind) => {
+    try {
+      const k: CopyKind = kind === 'txt' && !labels ? 'words' : kind;
+      const { text, copied } = await copyExport(useSong.getState().doc!, k, { transpose, roman, handoffLyrics: quoteLocked });
+      if (copied) toast('Copied. Paste it anywhere.');
+      else await copyWithToast(text);
+    } catch (e) {
+      console.warn(e);
+      toast('Could not copy');
     }
   };
 
@@ -234,7 +248,10 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
         {tab === 'export' && (
           <View style={{ paddingHorizontal: space.lg, gap: space.sm }}>
             <SectionTitle>Lyrics</SectionTitle>
-            <Button title="Text file (.txt)" icon="document-text-outline" onPress={() => run('txt')} busy={busy === 'txt'} testID="export-txt" />
+            <WithCopy onCopy={() => copy('txt')} testID="copy-lyrics">
+              <Button title="Text file (.txt)" icon="document-text-outline" onPress={() => run('txt')} busy={busy === 'txt'} testID="export-txt" />
+            </WithCopy>
+            <ToggleRow label="Title and [Verse] labels when copying" hint="Off: just the words, a blank line between sections" value={labels} onChange={setLabels} testID="copy-labels" />
             <Button title="PDF lyric sheet" icon="document-outline" onPress={() => run('pdf-lyrics')} busy={busy === 'pdf-lyrics'} />
             <Button title="Lyric card (picture)" icon="image-outline" onPress={() => onOpen('image')} testID="open-card-image" />
             <SectionTitle>Chords and melody</SectionTitle>
@@ -244,20 +261,36 @@ export function SongSheet({ visible, onClose, onOpen }: { visible: boolean; onCl
               <Button compact title="+" onPress={() => setTranspose(Math.min(11, transpose + 1))} />
             </Row>
             <ToggleRow label="Roman numerals on the chart" value={roman} onChange={setRoman} />
-            <Button title="Chord sheet as text (.txt)" icon="document-text-outline" onPress={() => run('chordsheet')} busy={busy === 'chordsheet'} testID="export-chordsheet" />
+            <WithCopy onCopy={() => copy('chordsheet')} testID="copy-chordsheet">
+              <Button title="Chord sheet as text (.txt)" icon="document-text-outline" onPress={() => run('chordsheet')} busy={busy === 'chordsheet'} testID="export-chordsheet" />
+            </WithCopy>
             <Button title="PDF chord chart" icon="musical-notes-outline" onPress={() => run('pdf-chords')} busy={busy === 'pdf-chords'} />
-            <Button title="ChordPro (.cho)" icon="code-slash-outline" onPress={() => run('chordpro')} busy={busy === 'chordpro'} testID="export-chordpro" />
+            <WithCopy onCopy={() => copy('chordpro')} testID="copy-chordpro">
+              <Button title="ChordPro (.cho)" icon="code-slash-outline" onPress={() => run('chordpro')} busy={busy === 'chordpro'} testID="export-chordpro" />
+            </WithCopy>
             <Button title="MIDI (chords + melody)" icon="musical-note-outline" onPress={() => run('midi')} busy={busy === 'midi'} />
             <SectionTitle>For a co-writer</SectionTitle>
-            <Button title="Hand-off note (what's done, what's open)" icon="person-add-outline" onPress={() => run('handoff')} busy={busy === 'handoff'} testID="export-handoff" />
+            <WithCopy onCopy={() => copy('handoff')} testID="copy-handoff">
+              <Button title="Hand-off note" icon="person-add-outline" onPress={() => run('handoff')} busy={busy === 'handoff'} testID="export-handoff" />
+            </WithCopy>
             <ToggleRow label="Quote my locked lines in it" hint="Locked lines are the ones to leave alone. Off: it only says how many." value={quoteLocked} onChange={setQuoteLocked} testID="handoff-quote" />
             <SectionTitle>Everything</SectionTitle>
-            <Button title="Project ZIP (lyrics, chords, melody, all takes)" icon="archive-outline" onPress={() => run('zip')} busy={busy === 'zip'} testID="export-zip" />
-            <Text style={{ color: t.textFaint, fontSize: font.small }}>Single takes can be shared from the Takes sheet.</Text>
+            <Button title="Project ZIP with all takes" icon="archive-outline" onPress={() => run('zip')} busy={busy === 'zip'} testID="export-zip" />
+            <Text style={{ color: t.textFaint, fontSize: font.small }}>The hand-off note lists what is done and what is still open. Single takes can be shared from the Takes page. The Copy buttons put the text on the clipboard to paste into a message, a note or a document.</Text>
           </View>
         )}
       </ScrollView>
     </BottomSheet>
+  );
+}
+
+/** A wide export button with a Copy button beside it. */
+function WithCopy({ children, onCopy, testID }: { children: React.ReactNode; onCopy: () => void; testID: string }) {
+  return (
+    <Row>
+      <View style={{ flex: 1 }}>{children}</View>
+      <Button icon="copy-outline" title="Copy" onPress={onCopy} testID={testID} />
+    </Row>
   );
 }
 

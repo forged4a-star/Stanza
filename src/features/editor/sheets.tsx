@@ -1,4 +1,5 @@
 /** Line options, section arrangement and the side-by-side compare view. */
+import { copyWithToast } from '../export/exportActions';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SECTION_KIND_NAMES, SECTION_KINDS, parallelSectionIndex, sectionDisplayNames, type SectionKind } from '../../core/model';
@@ -105,6 +106,7 @@ export async function sectionMenu(sectionId: string, onCompare: (a: number, b: n
     { label: sec.feeling ? `Feeling: ${sec.feeling}` : 'Name the feeling', value: 'feeling' },
     { label: 'Change type', value: 'kind' },
     { label: 'Rename', value: 'rename' },
+    { label: 'Copy the words', value: 'copy' },
     { label: 'Duplicate', value: 'dup' },
     { label: sec.collapsed ? 'Expand' : 'Collapse', value: 'collapse' },
     ...(p !== null ? [{ label: `Compare with ${names[p]}`, value: 'compare' }] : [{ label: 'Compare with…', value: 'compare' }]),
@@ -116,6 +118,12 @@ export async function sectionMenu(sectionId: string, onCompare: (a: number, b: n
     case 'chords':
       openChordPicker({ kind: 'bar', sectionId, bar: null, slot: 0 });
       break;
+    case 'copy': {
+      const words = sec.lines.map((l) => l.text).join('\n').replace(/\s+$/, '');
+      if (words) await copyWithToast(words, `Copied the ${names[idx]} words`);
+      else toast('Nothing written in this section yet');
+      break;
+    }
     case 'melody':
       openMelody(sectionId, true);
       break;

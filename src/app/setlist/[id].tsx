@@ -8,6 +8,7 @@ import { getDb } from '../../db/client';
 import * as repo from '../../db/repo';
 import { safeFileName } from '../../core/export/formats';
 import { keyJumps, moveItem, playedKey, setlistText, setTotals, transposeLabel, type SetlistEntry } from '../../core/song/setlist';
+import { copyWithToast } from '../../features/export/exportActions';
 import { shareFile } from '../../platform/share';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { askText, toast } from '../../ui/Dialogs';
@@ -95,7 +96,8 @@ export default function SetlistPage() {
         >
           {name}
         </Text>
-        <IconButton icon="share-outline" label="Share the run sheet" onPress={() => void share()} testID="setlist-share" />
+        <IconButton icon="copy-outline" label="Copy the run sheet" onPress={() => void copyWithToast(setlistText(name, entries), 'Copied the run sheet')} testID="setlist-copy" />
+        <IconButton icon="share-outline" label="Share the run sheet as a file" onPress={() => void share()} testID="setlist-share" />
       </Row>
       <Text style={{ color: t.textDim, fontSize: font.small, paddingHorizontal: space.lg }} testID="setlist-totals">
         {totals.label}
